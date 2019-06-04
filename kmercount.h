@@ -381,7 +381,6 @@ DeNovoCount(vector<filedata> & allfiles,
     double cardinality;
     size_t totreads = 0;
 
-	// cout << "sizeof Kmer class: " << sizeof(Kmer) << "\n" << std::flush;
 	
     for(auto itr=allfiles.begin(); itr!=allfiles.end(); itr++) 
     {
@@ -471,10 +470,11 @@ DeNovoCount(vector<filedata> & allfiles,
 
 
 	////////////////////////////////////////////////////////////////////////////
+	
 	uint64_t totkmers = 0;
 	for (int i = 0; i < MAXTHREADS; ++i)
 		totkmers += allkmers[i].size();
-	assert (N_LONGS == 4);
+	assert (N_LONGS == 4); //each kmer is rappresented by 4 longs
 	cout << "Copying kmers to gpu...\n";
 	uint64_t *h_kmers = (uint64_t *)
 		malloc(sizeof(*h_kmers) * totkmers * N_LONGS);
@@ -494,8 +494,9 @@ DeNovoCount(vector<filedata> & allfiles,
 	auto t1 = Clock::now();
 	uint64_t *d_kmers = NULL;
 	cudaMalloc((void **)&d_kmers, sizeof(*d_kmers) * totkmers * N_LONGS);
+	
 	cudaMemcpy(d_kmers, h_kmers, sizeof(*d_kmers) * totkmers * N_LONGS,
-			   cudaMemcpyHostToDevice);
+			   cudaMemcpyHostToDevice);//copy kmers to gpu
 
 	// Bloom filter construction
 	typedef nvbio::bloom_filter<5, RSHash<uint64_t *>,
