@@ -240,7 +240,7 @@ void DeNovoCount(vector<filedata> & allfiles, dictionary_t & countsreliable_deno
             }
         erate = erate / (double)MAXTHREADS;
     }
-
+    cout<<erate<<'\n';
     // HLL reduction (serial for now) to avoid double iteration
     for (int i = 1; i < MAXTHREADS; i++) 
     {
