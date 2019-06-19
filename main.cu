@@ -297,8 +297,8 @@ int main (int argc, char *argv[]) {
     double all = omp_get_wtime();
     DeNovoCount_cpu(allfiles, countsreliable, lower, upper, kmer_len, depth, erate, upperlimit, b_parameters);
 	DeNovoCount(allfiles, countsreliable, lower, upper, kmer_len, depth, erate, upperlimit, b_parameters);
-    std::cout << "exiting...\n";
-    exit(0);
+   // std::cout << "exiting...\n";
+   // exit(0);
 
 #ifdef PRINT
     cout << "Error rate estimate is " << erate << endl;
