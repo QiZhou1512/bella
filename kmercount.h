@@ -505,9 +505,33 @@ DeNovoCount_new(vector<filedata> & allfiles,
 	cudaMemset(d_filter_storage, 0 , nfilter_elems *sizeof(*d_filter_storage));
 	
 	bloom_filter_type d_filter(nfilter_elems * 32, d_filter_storage);
+	
+	cout<<"totkmers: "<<totkmers'\n';
 
+	cout << "number of bits " << nfilter_elems * 32<< " " << (nfilter_elems * 32) / ((1 << 20) * 8) << " mb " << endl;
+	
+	uint8_t *d_kmer_pass = NULL;
+	uint64_t **d_kmer_ptrs = NULL;
+	
+	cudaMalloc((void **)&d_kmer_pass, totkmers * sizeof(*d_kmer_pass));
+	cudaMemset(d_kmer_pass, 0, totkmers * sizeof(*d_kmer_pass));
+	cudaMalloc((void **)&d_kmer_ptrs, totkmers * sizeof(*d_kmer_ptrs));
+
+	int nblocks = (totkmers + 1023)/1024;
+	populate_kernel<<<nblocks,1024>>>(totkmers,d_kmers,d_filter, d_kmer_pass,d_kmer_ptrs);
 }
 
+
+dictionary_t AccurateCount(vector < vector<Kmer> > allkmers){
+	
+	for(auto v:allkmers[MYTHREAD])
+        {
+               	
+                countsdenovo.uprase_fn(v,ls, 0);
+        }
+
+
+}
 
 /**
  * @brief DeNovoCount
