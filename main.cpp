@@ -296,7 +296,9 @@ int main (int argc, char *argv[]) {
     cout << "\nRunning with up to " << MAXTHREADS << " threads" << endl;
     double all = omp_get_wtime();
     DeNovoCount(allfiles, countsreliable, lower, upper, kmer_len, depth, erate, upperlimit, b_parameters);
-
+    cout << "Error rate estimate is " << erate << endl;
+    cout << "Reliable lower bound: " << lower << endl;
+    cout << "Reliable upper bound: " << upper << endl;
 #ifdef PRINT
     cout << "Error rate estimate is " << erate << endl;
     cout << "Reliable lower bound: " << lower << endl;
