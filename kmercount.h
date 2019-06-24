@@ -1,6 +1,7 @@
 #ifndef BELLA_KMERCOUNT_H_
 #define BELLA_KMERCOUNT_H_
 
+#include <inttypes.h>
 #include <iostream>
 #include <cstdio>
 #include <cstdlib>
@@ -51,6 +52,8 @@
 #include "gpu/bloom-gpu/fhash.h"
 #include "gpu/bloom-gpu/nvbio/bloom_filter.h"
 #include "gpu/bloom-gpu/nvbio/types.h"
+#include "gpu/SlabHash/src/slab_hash.cuh"
+#include "gpu/SlabHash/src/gpu_hash_table.cuh"
 typedef std::chrono::high_resolution_clock Clock;
 
 
@@ -168,6 +171,7 @@ void JellyFishCount(char *kmer_file, dictionary_t & countsreliable_jelly, int lo
  */
 void DeNovoCount_cpu(vector<filedata> & allfiles, dictionary_t & countsreliable_denovo, int & lower, int & upper, int kmer_len, int depth, double & erate, size_t upperlimit /* memory limit */, BELLApars & b_parameters)
 {
+   
     vector < vector<Kmer> > allkmers(MAXTHREADS);
     vector < vector<double> > allquals(MAXTHREADS);
     vector < HyperLogLog > hlls(MAXTHREADS, HyperLogLog(12));   // std::vector fill constructor
@@ -351,6 +355,58 @@ void DeNovoCount_cpu(vector<filedata> & allfiles, dictionary_t & countsreliable_
 
 }
 
+void ToKmerBin(uint32_t*binKmer, char* kmerString){
+	        switch(kmerString[0]){
+                        case 'A':
+                                *binKmer = 0x00;
+                                break;
+                        case 'C':
+                                *binKmer = 0x01;
+                                break;
+                        case 'G':
+                                *binKmer =  0x02;
+                                break;
+                        case 'T':
+                                *binKmer =  0x03;
+                                break;
+                }
+	for(int i=1; i<16;i++){
+                switch(kmerString[i]){
+                        case 'A':
+                                *binKmer = (*binKmer<<2) | 0x00;
+                                break;
+                        case 'C':
+                                *binKmer = (*binKmer<<2) | 0x01;
+                                break;
+                        case 'G':
+                                *binKmer = (*binKmer<<2) | 0x02;
+                                break;
+                        case 'T':
+                                *binKmer = (*binKmer<<2) | 0x03;
+                                break;
+                }
+        }
+
+
+}
+
+void printBin(char*toPrint){
+        unsigned char *b = (unsigned char*) toPrint;
+        unsigned char byte;
+        int i, j;
+
+        for (i=sizeof(uint32_t)-1;i>=0;i--)
+        {
+                for (j=7;j>=0;j--)
+                {
+                byte = (b[i] >> j) & 1;
+                 printf("%u", byte);
+                }
+        }
+        puts("");
+}
+
+
 /**
  * @brief DeNovoCount
  * @param allfiles
@@ -473,7 +529,7 @@ DeNovoCount_new(vector<filedata> & allfiles,
 		totkmers += allkmers[i].size();
 	}
 	
-	asset (N_LONGS == 4);
+	assert (N_LONGS == 4);
 
 	cout<<" Copying kmers to gpu...\n";
 	uint64_t *h_kmers = (uint64_t *) malloc(sizeof(*h_kmers) * totkmers * N_LONGS);
@@ -506,7 +562,7 @@ DeNovoCount_new(vector<filedata> & allfiles,
 	
 	bloom_filter_type d_filter(nfilter_elems * 32, d_filter_storage);
 	
-	cout<<"totkmers: "<<totkmers'\n';
+//	cout<<"totkmers: "<<totkmers<<'\n';
 
 	cout << "number of bits " << nfilter_elems * 32<< " " << (nfilter_elems * 32) / ((1 << 20) * 8) << " mb " << endl;
 	
@@ -515,23 +571,201 @@ DeNovoCount_new(vector<filedata> & allfiles,
 	
 	cudaMalloc((void **)&d_kmer_pass, totkmers * sizeof(*d_kmer_pass));
 	cudaMemset(d_kmer_pass, 0, totkmers * sizeof(*d_kmer_pass));
-	cudaMalloc((void **)&d_kmer_ptrs, totkmers * sizeof(*d_kmer_ptrs));
-
-	int nblocks = (totkmers + 1023)/1024;
-	populate_kernel<<<nblocks,1024>>>(totkmers,d_kmers,d_filter, d_kmer_pass,d_kmer_ptrs);
-}
-
-
-dictionary_t AccurateCount(vector < vector<Kmer> > allkmers){
 	
-	for(auto v:allkmers[MYTHREAD])
-        {
-               	
-                countsdenovo.uprase_fn(v,ls, 0);
-        }
 
+	int nblocks = (totkmers + 1024)/1024;
+	cudaMalloc((void **)&d_kmer_pass,
+			   totkmers * sizeof(*d_kmer_pass));
+	cudaMemset(d_kmer_pass, 0,
+			   totkmers * sizeof(*d_kmer_pass));
+	cudaMalloc((void **)&d_kmer_ptrs,
+			   totkmers * sizeof(*d_kmer_ptrs));
+
+	
+	populate_kernel<<<nblocks,1024>>>(totkmers, d_kmers, d_filter, d_kmer_pass, d_kmer_ptrs);
+	
+	
+
+	cudaDeviceSynchronize();
+	cudaProfilerStop();
+	dictionary_t countsdenovo;
+	#pragma omp parallel
+    	{       
+    		for(auto v:allkmers[MYTHREAD])
+    		{
+        		countsdenovo.insert(v, 0);
+    		}
+	}
+
+	auto updatecount = [](int &num) { ++num; };
+	#pragma omp parallel
+    	{	       
+    		for(auto v:allkmers[MYTHREAD])
+    		{
+        		// does nothing if the entry doesn't exist in the table
+        		countsdenovo.update_fn(v,updatecount);
+    		}
+	}
+	uint32_t *h_filter_storage = (uint32_t *) malloc(sizeof(*h_filter_storage)*nfilter_elems);
+	
+	cudaMemcpy(h_filter_storage, d_filter_storage, nfilter_elems * sizeof(*h_filter_storage), cudaMemcpyDeviceToHost);
+	
+	bloom_filter_type h_filter(nfilter_elems * 32, h_filter_storage);
+	
+	std::string h_kmer;
+	int count = 0;
+	int singleton = 0;
+	int tot = 0;
+	int errors = 0;
+	
+	 for (int k = 0; k < totkmers; ++k)
+	 {
+	 	int kmerid = k;
+	 	{
+	 		uint64_t *kmerptr = &(h_kmers[kmerid * N_LONGS]);
+	 		//printf("%llu %llu %llu %llu\n",
+	 		//	   kmerptr[0], kmerptr[1], kmerptr[2], kmerptr[3]);
+	 		size_t i,j,l;
+	 		char *sx = (char *) malloc(1024);
+	 		char *s = sx;
+	 		memset(s, '\0', 1024);
+	 	//	printf("kmerid %d\n", kmerid);
+	 		for (i = 0; i < Kmer::k; i++)
+	 		{
+	 			j = i % 32;
+	 			l = i / 32;
+
+	 			switch(((kmerptr[l]) >> (2*(31-j)) ) & 0x03)
+	 			{
+	 			case 0x00: *s = 'A'; ++s; break;
+	 			case 0x01: *s = 'C'; ++s; break;
+	 			case 0x02: *s = 'G'; ++s; break;
+	 			case 0x03: *s = 'T'; ++s; break;
+	 			}
+	 		}
+			h_kmer = sx;
+                        Kmer mykmer(h_kmer.c_str());
+                        Kmer lexsmall = mykmer.rep();
+ 
+			int val=0;
+                        val = countsdenovo.find(lexsmall);
+                       
+	 		bool b = h_filter.has(&(h_kmers[kmerid*N_LONGS]));
+		        		
+			if(!b){
+				errors++;
+			}
+			if(b){
+				count++;
+				tot += val;
+			}
+			
+	 	}	
+	 }
+	//printf("positive %d , false positive %d , errors %d\n",positive,falsePositive, errors);
+		
+	printf("totkmers: %d, count : %d, tot: %d, error: %d \n", totkmers,count,tot, errors);
+
+	/////////////////////////////////////////
+	//HASHTABLE
+	//building hash table
+	uint32_t num_keys =  2;
+	
+	float expected_chain = 0.6f;
+	uint32_t num_elements_per_unit = 15;
+	uint32_t expected_elements_per_bucket =
+      			expected_chain * num_elements_per_unit;
+  	uint32_t num_buckets = (num_keys + expected_elements_per_bucket - 1) /
+			expected_elements_per_bucket;
+	// ==== generating key-values and queries on the host:
+  	float existing_ratio = 1.0f;  // ratio of queries within the table
+  	uint32_t num_queries = num_keys;
+
+  	using KeyT = uint32_t;
+  	using ValueT = uint32_t;
+  	auto num_elements = 2 * num_keys;
+	
+	/*
+	A = 00
+	C = 01
+	G = 10
+	T = 11
+	*/
+
+  	std::vector<KeyT> h_key(0);
+  	std::vector<ValueT> h_value(0);
+  	std::vector<KeyT> h_query(0);
+  	std::vector<ValueT> h_correct_result(2);
+  	std::vector<ValueT> h_result(2);
+	
+	char val1[]={'C','A','A','A','A','A','T','A','A','A','A','A','A','A','A','G'};
+        uint32_t conv1=0;
+        char val2[]={'C','A','A','A','A','A','T','G','A','A','A','A','A','A','A','G'};
+        uint32_t conv2=0;
+        ToKmerBin(&conv1, val1);
+        ToKmerBin(&conv2, val2);
+
+	h_key.push_back(conv1);
+	h_key.push_back(conv2);
+
+	h_value.push_back((uint32_t)2323);
+	h_value.push_back((uint32_t)213);	
+	
+	h_query.push_back(conv1);
+        h_query.push_back(conv2);
+	/*
+  	// std::iota(h_key.begin(), h_key.end(), 0);
+  	const auto f = [](const KeyT& key) { return key * 10; };
+
+  	std::random_device rd;
+  	const int64_t seed = 1;
+  	std::mt19937 rng(seed);
+  	std::vector<uint32_t> index(num_elements);
+  	std::iota(index.begin(), index.end(), 0);
+  	std::shuffle(index.begin(), index.end(), rng);
+
+  	for (int32_t i = 0; i < index.size(); i++) {
+    		h_key[i] = index[i];
+    		h_value[i] = f(h_key[i]);
+  	}
+	*/
+ 
+  // permuting the queries:
+  	
+  	gpu_hash_table<KeyT, ValueT, SlabHashTypeT::ConcurrentMap>
+      	hash_table(num_keys, num_buckets, 0, 1);
+
+  	float build_time =
+      		hash_table.hash_build(h_key.data(), h_value.data(), num_keys);
+  	float search_time =
+      		hash_table.hash_search(h_query.data(), h_result.data(), 2);
+  	float search_time_bulk =
+      		hash_table.hash_search_bulk(h_query.data(), h_result.data(), 2);
+  // // hash_table.print_bucket(0);
+ /* 	printf("Hash table: \n");
+  	printf("num_keys = %d, num_buckets = %d\n", num_keys, num_buckets);
+  	printf("\t2) Hash table built in %.3f ms (%.3f M elements/s)\n", build_time,
+        	 double(num_keys) / build_time / 1000.0);
+  	printf("\t3) Hash table search (%.2f) in %.3f ms (%.3f M queries/s)\n",
+         	existing_ratio, search_time,
+         	double(num_queries) / search_time / 1000.0);
+  	printf("\t4) Hash table bulk search (%.2f) in %.3f ms (%.3f Mqueries/s)\n",
+         	existing_ratio, search_time_bulk,
+         	double(num_queries) / search_time_bulk / 1000.0);
+
+  	double load_factor = hash_table.measureLoadFactor();
+
+  	printf("The load factor is %.2f, number of buckets %d\n", load_factor,
+        	 num_buckets);
+*/
+	printf("%" PRIu32 "\n",h_result[0]);
+	printf("%" PRIu32 "\n",h_result[1]);
+	exit(0); 
 
 }
+
+
+
 
 /**
  * @brief DeNovoCount
@@ -542,399 +776,5 @@ dictionary_t AccurateCount(vector < vector<Kmer> > allkmers){
  * @param kmer_len
  * @param upperlimit
  */
-void
-DeNovoCount(vector<filedata> & allfiles,
-			dictionary_t & countsreliable_denovo,
-			int & lower,
-			int & upper,
-			int kmer_len,
-			int depth,
-			double & erate,
-			size_t upperlimit /* memory limit */,
-			BELLApars & b_parameters)
-{
-    vector < vector<Kmer> > allkmers(MAXTHREADS);
-    vector < vector<double> > allquals(MAXTHREADS);
-    vector < HyperLogLog > hlls(MAXTHREADS, HyperLogLog(12));   // std::vector fill constructor
 
-    double denovocount = omp_get_wtime();
-    double cardinality;
-    size_t totreads = 0;
-
-	
-    for(auto itr=allfiles.begin(); itr!=allfiles.end(); itr++) 
-    {
-        #pragma omp parallel
-        {
-            ParallelFASTQ *pfq = new ParallelFASTQ();
-            pfq->open(itr->filename, false, itr->filesize);
-
-            vector<string> seqs;
-            vector<string> quals;
-            vector<string> nametags;
-            size_t tlreads = 0; // thread local reads
-
-            size_t fillstatus = 1;
-            while(fillstatus) 
-            { 
-                fillstatus = pfq->fill_block(nametags, seqs, quals, upperlimit);
-                size_t nreads = seqs.size();
-
-                for(int i=0; i<nreads; i++) 
-                {
-                    // remember that the last valid position is length()-1
-                    int len = seqs[i].length();
-                    double rerror = 0.0;
-
-                    for(int j=0; j<=len-kmer_len; j++)  
-                    {
-                        std::string kmerstrfromfastq = seqs[i].substr(j, kmer_len);
-                        Kmer mykmer(kmerstrfromfastq.c_str());
-                        Kmer lexsmall = mykmer.rep();
-                        allkmers[MYTHREAD].push_back(lexsmall);
-                        hlls[MYTHREAD].add((const char*) lexsmall.getBytes(), lexsmall.getNumBytes());
-
-            		if(b_parameters.skipEstimate == false)
-            		{
-                        	// accuracy
-                       		int bqual = (int)quals[i][j] - ASCIIBASE;
-                        	double berror = pow(10,-(double)bqual/10);
-                        	rerror += berror;
-            		}
-
-                    }
-		    if(b_parameters.skipEstimate == false)
-		    {
-                    	// remaining k qual position accuracy
-                    	for(int j=len-kmer_len+1; j < len; j++)
-                    	{
-                        	int bqual = (int)quals[i][j] - ASCIIBASE;
-                        	double berror = pow(10,-(double)bqual/10);
-                        	rerror += berror;
-                    	}
-                    	rerror = rerror / len;
-                    	allquals[MYTHREAD].push_back(rerror);
-		    }
-                } // for(int i=0; i<nreads; i++)
-                tlreads += nreads;
-            } //while(fillstatus) 
-            delete pfq;
-
-            #pragma omp critical
-            totreads += tlreads;
-        }
-    }
-
-    // Error estimation
-    if(b_parameters.skipEstimate == false)
-    {
-        erate = 0.0; // reset to 0 here, otherwise it cointains default or user-defined values
-        #pragma omp for reduction(+:erate)
-        for (int i = 0; i < MAXTHREADS; i++) 
-            {
-                double temp = std::accumulate(allquals[i].begin(),allquals[i].end(), 0.0);
-                erate += temp/(double)allquals[i].size();
-            }
-        erate = erate / (double)MAXTHREADS;
-    }
-
-    // HLL reduction (serial for now) to avoid double iteration
-    for (int i = 1; i < MAXTHREADS; i++) 
-    {
-        std::transform(hlls[0].M.begin(), hlls[0].M.end(), hlls[i].M.begin(), hlls[0].M.begin(), [](uint8_t c1, uint8_t c2) -> uint8_t{ return std::max(c1, c2); });
-    }
-    cardinality = hlls[0].estimate();
-
-    double load2kmers = omp_get_wtime(); 
-    cout << "Initial parsing, error estimation, and k-mer loading took: " << load2kmers - denovocount << "s\n" << endl;
-
-
-	////////////////////////////////////////////////////////////////////////////
-	
-	uint64_t totkmers = 0;
-	for (int i = 0; i < MAXTHREADS; ++i)
-		totkmers += allkmers[i].size();
-	assert (N_LONGS == 4); //each kmer is rappresented by 4 longs
-	cout << "Copying kmers to gpu...\n";
-	uint64_t *h_kmers = (uint64_t *)
-		malloc(sizeof(*h_kmers) * totkmers * N_LONGS);
-	uint64_t tmp = 0;
-	for (int i = 0; i < MAXTHREADS; i++)
-	{
-		for (int j = 0; j < allkmers[i].size(); ++j)
-		{
-			h_kmers[tmp++] = allkmers[i][j].getArray()[0];
-			h_kmers[tmp++] = allkmers[i][j].getArray()[1];
-			h_kmers[tmp++] = allkmers[i][j].getArray()[2];
-			h_kmers[tmp++] = allkmers[i][j].getArray()[3];
-		}
-	}
-
-	cudaProfilerStart();
-	auto t1 = Clock::now();
-	uint64_t *d_kmers = NULL;
-	cudaMalloc((void **)&d_kmers, sizeof(*d_kmers) * totkmers * N_LONGS);
-	
-	cudaMemcpy(d_kmers, h_kmers, sizeof(*d_kmers) * totkmers * N_LONGS,
-			   cudaMemcpyHostToDevice);//copy kmers to gpu
-
-	// Bloom filter construction
-	typedef nvbio::bloom_filter<5, RSHash<uint64_t *>,
-				       ElfHash<uint64_t *>,
-				       uint32_t *>bloom_filter_type;
-	
-
-	uint64_t nfilter_elems = totkmers / 4;
-	uint32_t *d_filter_storage = NULL;
-	cudaMalloc((void **)&d_filter_storage,
-			   nfilter_elems * sizeof(*d_filter_storage));
-	cudaMemset(d_filter_storage, 0,
-			   nfilter_elems * sizeof(*d_filter_storage));
-	
-	bloom_filter_type d_filter(nfilter_elems * 32, d_filter_storage);
-        
-	cout<<"totkmers: "<<totkmers<<'\n';
-	cout << "number of bits " << nfilter_elems * 32
-		 << " " << (nfilter_elems * 32) / ((1 << 20) * 8) << " mb " << endl;
-
-	// for counting
-	uint8_t		 *d_kmer_pass = NULL;
-	uint64_t	**d_kmer_ptrs = NULL;
-	cudaMalloc((void **)&d_kmer_pass,
-			   totkmers * sizeof(*d_kmer_pass));
-	cudaMemset(d_kmer_pass, 0,
-			   totkmers * sizeof(*d_kmer_pass));
-	cudaMalloc((void **)&d_kmer_ptrs,
-			   totkmers * sizeof(*d_kmer_ptrs));
-
-	int nblocks = (totkmers + 1023) / 1024;
-	populate_kernel<<<nblocks,1024>>>(totkmers, d_kmers, d_filter, d_kmer_pass, d_kmer_ptrs);
-
-	cudaDeviceSynchronize();
-
-	cudaProfilerStop();
-
-	// uint32_t *h_filter_storage = (uint32_t *)
-	// 	malloc(sizeof(*h_filter_storage) * nfilter_elems);	
-	// cudaMemcpy(h_filter_storage, d_filter_storage,
-	// 		   nfilter_elems * sizeof(*h_filter_storage),
-	// 		   cudaMemcpyDeviceToHost);
-	// bloom_filter_type h_filter(nfilter_elems * 32, h_filter_storage);
-
-	// for (int i = 0; i < 2; ++i)
-	// {
-	// 	int kmerid = rand() % totkmers;
-	// 	{
-	// 		uint64_t *kmerptr = &(h_kmers[kmerid * N_LONGS]);
-	// 		printf("%llu %llu %llu %llu\n",
-	// 			   kmerptr[0], kmerptr[1], kmerptr[2], kmerptr[3]);
-	// 		size_t i,j,l;
-	// 		char *sx = (char *) malloc(1024);
-	// 		char *s = sx;
-	// 		memset(s, '\0', 1024);
-	// 		printf("kmerid %d %d\n", kmerid, Kmer::k);
-	// 		for (i = 0; i < Kmer::k; i++)
-	// 		{
-	// 			j = i % 32;
-	// 			l = i / 32;
-
-	// 			switch(((kmerptr[l]) >> (2*(31-j)) ) & 0x03)
-	// 			{
-	// 			case 0x00: *s = 'A'; ++s; break;
-	// 			case 0x01: *s = 'C'; ++s; break;
-	// 			case 0x02: *s = 'G'; ++s; break;
-	// 			case 0x03: *s = 'T'; ++s; break;
-	// 			}
-	// 		}
-
-	// 		bool b = h_filter.has(&(h_kmers[kmerid]));
-	// 		printf("kmer %s in filter? %d\n", sx, b);
-	// 	}
-	// }
-	
-	printf("Sorting to remove filtered kmers...\n");
-	thrust::device_ptr<uint8_t> d_kmer_pass_tht(d_kmer_pass);
-	thrust::device_ptr<uint64_t *> d_kmer_ptrs_tht(d_kmer_ptrs);
-	thrust::sort_by_key(d_kmer_pass_tht, d_kmer_pass_tht + totkmers,
-						d_kmer_ptrs_tht, thrust::greater<uint8_t>());
-
-	thrust::device_vector<uint8_t>::iterator iter;
-	iter = thrust::find(d_kmer_pass_tht, d_kmer_pass_tht + totkmers, 0);
-	
-	uint8_t *x = thrust::raw_pointer_cast(&(iter[0]));
-	int count = x - d_kmer_pass;
-	
-	 printf("%p %p --- active: %d, elim: %d, tot: %d\n",
-	 	   x, d_kmer_pass, count, totkmers-count, totkmers);
-
-	// sort
-	uint64_t active_kmers = x - d_kmer_pass;
-	thrust::sort(d_kmer_ptrs_tht, d_kmer_ptrs_tht + active_kmers,
-				 compare_kmer());
-
-	printf("reducing...\n");
-
-	// reduce by key
-	uint64_t **d_outkeys = NULL;
-	uint32_t *d_outvals = NULL;
-	cudaMalloc((void **)&d_outkeys, active_kmers * sizeof(*d_outkeys));
-	cudaMalloc((void **)&d_outvals, active_kmers * sizeof(*d_outvals));
-	thrust::device_ptr<uint64_t *> d_outkeys_tht(d_outkeys);
-	thrust::device_ptr<uint32_t> d_outvals_tht(d_outvals);
-
-	typedef thrust::device_vector<uint64_t *>::iterator uint64PtrIter;
-	typedef thrust::device_vector<uint32_t>::iterator uint32Iter;
-	typedef thrust::pair<uint64PtrIter, uint32Iter> pairIter;
-	pairIter var = 
-		thrust::reduce_by_key(d_kmer_ptrs_tht, d_kmer_ptrs_tht + active_kmers,
-							  d_kmer_pass_tht,
-							  d_outkeys_tht, d_outvals_tht,
-							  equal_kmer(),
-							  thrust::plus<uint32_t>());
-	cudaDeviceSynchronize();
-	uint64PtrIter iter1 = thrust::get<0>(var);
-	uint64_t distinct_kmers = thrust::raw_pointer_cast(&(iter1[0])) - d_outkeys;
-	cudaDeviceSynchronize();
-	cout << "distinct kmers: " << distinct_kmers << "\n";
-
-//	uint64_t *tmp2 = d_outkeys_tht[17];
-//	uint32_t x2 = d_outvals_tht[17];
-	
-	// printf("%p %p %d\n", d_kmers, tmp2, x2);
-
-    	uint64_t **h_outkeys = (uint64_t **)
-		malloc(sizeof(*h_outkeys) * distinct_kmers);
-	uint32_t *h_outvals = (uint32_t *)
-		malloc(sizeof(*h_outvals) * distinct_kmers);
-
-	cudaMemcpy(h_outkeys, d_outkeys,
-			   sizeof(*h_outkeys) * distinct_kmers,
-			   cudaMemcpyDeviceToHost);
-	cudaMemcpy(h_outvals, d_outvals,
-			   sizeof(*h_outvals) * distinct_kmers,
-			   cudaMemcpyDeviceToHost);
-	uint64_t *base_kmer_ptr = d_kmers;
-
-
-	auto t2 = Clock::now();
-	double duration = std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1).count();
-	duration = duration / 1e6;
-	printf("bloom filter insert/query took %.2f milliseconds on GPU for %d kmers\n",
-		   duration, totkmers);
-	
-	lower = computeLower(depth, erate, kmer_len);
-    	upper = computeUpper(depth, erate, kmer_len);
-	printf("%p %p %d\n", h_outkeys[0], base_kmer_ptr,
-	 	   (h_outkeys[0] - base_kmer_ptr)/N_LONGS);
-	 for (uint64_t i = 0; i < distinct_kmers; ++i)
-	 	assert ((h_outkeys[i] - base_kmer_ptr)/N_LONGS < totkmers);
-
-                for (int y = 0;y<distinct_kmers;++y){
-                uint64_t kmerid = (h_outkeys[y] - base_kmer_ptr)/N_LONGS;
-                uint64_t *kmerptr = &(h_kmers[kmerid * N_LONGS]);
-               // printf("%llu %llu %llu %llu\n",
-                 //          kmerptr[0], kmerptr[1], kmerptr[2], kmerptr[3]);
-                size_t i,j,l;
-                char *sx = (char *) malloc(1024);
-                char *s = sx;
-                memset(s, '\0', 1024);
-                //printf("kmerid %d %d\n", kmerid, Kmer::k);
-                for (i = 0; i < Kmer::k; i++)
-                {
-                        j = i % 32;
-                        l = i / 32;
-                //      printf("%d\n", i);
-
-                        switch(((kmerptr[l]) >> (2*(31-j)) ) & 0x03)
-                        {
-                        case 0x00: *s = 'A'; ++s; break;
-                        case 0x01: *s = 'C'; ++s; break;
-                        case 0x02: *s = 'G'; ++s; break;
-                        case 0x03: *s = 'T'; ++s; break;
-                        }
-               }
-		std::string kmerToInsert(sx);
-                Kmer mykmer(kmerToInsert.c_str());
-      	        Kmer lexsmall = mykmer.rep();
-		
-        	uint32_t nkmersintable = 0;
-   	 	int kmer_id_denovo = 0;
-    
-       		 
-               	 ++nkmersintable;
-       		 if (h_outvals[y] >= lower && h_outvals[y] <= upper)
-       		 {
-           	 countsreliable_denovo.insert(lexsmall,kmer_id_denovo);
-        	    ++kmer_id_denovo;
-       		 }
-	        
- 
-                //printf("kmer %s occurs %d\n", sx, h_outvals[y]);
-		}
-/*
-	 {	
-		int y = totkmers-1;
-	 	uint64_t kmerid = (h_outkeys[y] - base_kmer_ptr)/N_LONGS;
-	 	uint64_t *kmerptr = &(h_kmers[kmerid * N_LONGS]);
-	 	printf("%llu %llu %llu %llu\n",
-	 		   kmerptr[0], kmerptr[1], kmerptr[2], kmerptr[3]);
-	 	size_t i,j,l;
-	 	char *sx = (char *) malloc(1024);
-	 	char *s = sx;
-	 	memset(s, '\0', 1024);
-	 	printf("kmerid %d %d\n", kmerid, Kmer::k);
-	 	for (i = 0; i < Kmer::k; i++)
-	 	{
-	 		j = i % 32;
-    	 		l = i / 32;
-	 	//	printf("%d\n", i);
-
-	 		switch(((kmerptr[l]) >> (2*(31-j)) ) & 0x03)
-	 		{
-	 		case 0x00: *s = 'A'; ++s; break;
-	 		case 0x01: *s = 'C'; ++s; break;
-	 		case 0x02: *s = 'G'; ++s; break;
-	 		case 0x03: *s = 'T'; ++s; break;
-	 		}
-	 	}
-
-	 	printf("kmer %s occurs %d\n", sx, h_outvals[y]);
-		
-	 }
-
-*/
-
-	// ptrdiff_t *d_outids = NULL;
-	// cudaMalloc((void **)&d_outids, distinct_kmers * sizeof(*d_outids));
-	// thrust::device_ptr<ptrdiff_t> d_outids_tht(d_outids);
-	// thrust::transform(d_outkeys_tht, d_outkeys_tht + distinct_kmers,
-	// 				  thrust::constant_iterator<uint64_t *>(d_kmers),
-	// 				  d_outids_tht,
-	// 				  minus_ptr<uint64_t *>());
-
-	// ptrdiff_t x3 = d_outids[0];
-	// cout << x3 << "\n";
-	
-	
-	
-	// uint32_t count = h_ptr - d_kmer_pass;
-	// cout << h_ptr << " " << d_kmer_pass
-	// 	 <<  " # of passed kmers " << count << "\n";	
-
-
-	// uint32_t *h_filter_storage = (uint32_t *)
-	// 	malloc(sizeof(*h_filter_storage) * nfilter_elems);	
-	// cudaMemcpy(h_filter_storage, d_filter_storage,
-	// 		   nfilter_elems * sizeof(*h_filter_storage),
-	// 		   cudaMemcpyDeviceToHost);
-	// bloom_filter_type h_filter(nfilter_elems * 32, h_filter_storage);
-
-	// uint64_t tmpx[4]; tmpx[0] = 2131321; tmpx[1] = 21312; tmpx[2] = 99; tmpx[3] = 123123;
-	// std::cout << h_filter.has(&(h_kmers[6])) << "\n";
-	// std::cout << h_filter.has(tmpx) << "\n";
-	////////////////////////////////////////////////////////////////////////////
-	
-
-
-}
 #endif
