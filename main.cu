@@ -295,7 +295,7 @@ int main (int argc, char *argv[]) {
     // Error estimation and reliabe bounds computation within denovo counting
     cout << "\nRunning with up to " << MAXTHREADS << " threads" << endl;
     double all = omp_get_wtime();
-    DeNovoCount_cpu(allfiles, countsreliable, lower, upper, kmer_len, depth, erate, upperlimit, b_parameters);
+   // DeNovoCount_cpu(allfiles, countsreliable, lower, upper, kmer_len, depth, erate, upperlimit, b_parameters);
 	DeNovoCount_new(allfiles, countsreliable, lower, upper, kmer_len, depth, erate, upperlimit, b_parameters);
    // std::cout << "exiting...\n";
    // exit(0);
