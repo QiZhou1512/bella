@@ -489,6 +489,30 @@ dictionary_t accurateCount(double* duration_bella,vector < vector<Kmer> > allkme
     return countsdenovo;
 }
 
+std::vector<uint32_t> HashTableGPU(std::vector<uint32_t>& to_insert, int totkmers){
+	uint32_t num_keys = totkmers;
+	float expected_chain = 1;
+	uint32_t num_elements_per_unit = 15;
+	uint32_t expected_elements_per_bucket =
+			expected_chain * num_elements_per_unit;
+	uint32_t num_buckets = (num_keys + expected_elements_per_bucket - 1) /
+        			expected_elements_per_bucket;
+	
+	using KeyT = uint32_t;
+	using ValueT = uint32_t;
+    	std::vector<ValueT> h_result(totkmers);
+	gpu_hash_table<KeyT, ValueT, SlabHashTypeT::ConcurrentMap>
+        hash_table(2*totkmers, num_buckets, 0, 1);
+
+        float insert_time =
+                hash_table.hash_insert(to_insert.data(), totkmers);
+        float search_time =
+                hash_table.hash_search(to_insert.data(), h_result.data(), totkmers);
+	
+	printf("insert time : %f, search time : %f\n",insert_time,search_time);
+	return h_result;
+}
+
 /**
  * @brief DeNovoCount
  * @param allfiles
@@ -516,7 +540,7 @@ DeNovoCount_new(vector<filedata> & allfiles,
     double denovocount = omp_get_wtime();
     double cardinality;
     size_t totreads = 0;
-	
+	kmer_len = 16;
     for(auto itr=allfiles.begin(); itr!=allfiles.end(); itr++) 
     {
         #pragma omp parallel
@@ -627,9 +651,9 @@ DeNovoCount_new(vector<filedata> & allfiles,
 	//allocating and transfering kmers from the host to the device
 
 
-    double duration_bella;
-    dictionary_t countsdenovo;
-    countsdenovo =  accurateCount(&duration_bella,allkmers);
+    	double duration_bella;
+    	dictionary_t countsdenovo;
+    	countsdenovo =  accurateCount(&duration_bella,allkmers);
 
 	std::string h_kmer;
 	int count = 0;
@@ -639,31 +663,10 @@ DeNovoCount_new(vector<filedata> & allfiles,
 
 	//HASHTABLE
         //building hash table
-    uint32_t num_keys =  totkmers;
-
-    float expected_chain = 0.6f;
-    uint32_t num_elements_per_unit = 15;
-    uint32_t expected_elements_per_bucket =
-                    expected_chain * num_elements_per_unit;
-    uint32_t num_buckets = (num_keys + expected_elements_per_bucket - 1) /
-                    expected_elements_per_bucket;
-    // ==== generating key-values and queries on the host:
-    float existing_ratio = 1.0f;  // ratio of queries within the table
-    uint32_t num_queries = num_keys;
-
-    using KeyT = uint32_t;
-    using ValueT = uint32_t;
-    auto num_elements = 2 * num_keys;
-    std::vector<KeyT> h_key(0);
-    std::vector<ValueT> h_value(0);
-    std::vector<KeyT> h_query(0);
-    std::vector<ValueT> h_correct_result(0);
-    std::vector<ValueT> h_result(totkmers);
-	////////////////////////////////////
-	int bella_one = 0;
+	int bella_one =0 ;
 	int bella_two = 0;
 	int bella_three = 0;
-	///////////////////////////////////
+	std::vector<uint32_t> h_query(0);
 	 for (int k = 0; k < totkmers; ++k)
 	 {
 	 	int kmerid = k;
@@ -718,15 +721,13 @@ DeNovoCount_new(vector<filedata> & allfiles,
 			
 	 	}	
 	 }
+	
 	printf("starting gpu hash");
 	auto tgpu1 = Clock::now();
-	gpu_hash_table<KeyT, ValueT, SlabHashTypeT::ConcurrentMap>
-        hash_table(2*totkmers, num_buckets, 0, 1);
+	vector<uint32_t> h_result(0);
 	
-	float insert_time =
-        	hash_table.hash_insert(h_query.data(), totkmers);
-	float search_time =
-		hash_table.hash_search(h_query.data(), h_result.data(), totkmers);
+	h_result = HashTableGPU(h_query, totkmers);	
+	auto tgpu2 = Clock::now();	
 	int three = 0;
 	int two = 0;
 	int one = 0;
@@ -745,7 +746,6 @@ DeNovoCount_new(vector<filedata> & allfiles,
 	printf("h_result size : %d, totkmers : %d \n",h_result.size(),totkmers);
 	printf("one : %d,bella_one: %d, two: %d,bella_two : %d,three : %d, bella_three: %d \n"
 	,one,bella_one, two,bella_two, three,bella_three);
-	auto tgpu2 = Clock::now(); 
 	double duration_gpu = std::chrono::duration_cast<std::chrono::nanoseconds>(tgpu2 - tgpu1).count();
         duration_gpu = duration_gpu / 1e6;
 

@@ -205,7 +205,7 @@ void Kmer::set_kmer(const char *s)  {
   for (i = 0; i < k; ++i) {
     j = i % 32;
     l = i/32;
-    assert(*s != '\0');
+//    assert(*s != '\0');
     
     size_t x = ((*s) & 4) >> 1;
     longs[l] |= ((x + ((x ^ (*s & 2)) >>1)) << (2*(31-j)));
