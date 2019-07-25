@@ -392,7 +392,7 @@ void ToKmerStr(uint32_t binKmer, char* kmerString){
 	
 }
 
-void ToKmerBin(uint32_t*binKmer, char* kmerString){
+void ToKmerBin(uint32_t*binKmer,const char* kmerString){
 	        switch(kmerString[0]){
                         case 'A':
                                 *binKmer = 0x00;
@@ -426,40 +426,59 @@ void ToKmerBin(uint32_t*binKmer, char* kmerString){
 
 
 }
-void ToKmerBin(uint32_t*binKmer, char* kmerString,int remain){
-                switch(kmerString[0]){
-                        case 'A':
-                                *binKmer = 0x00;
-                                break;
-                        case 'C':
-                                *binKmer = 0x01;
-                                break;
-                        case 'G':
-                                *binKmer =  0x02;
-                                break;
-                        case 'T':
-                                *binKmer =  0x03;
-                                break;
-                }
-        for(int i=1; i<remain;i++){
-                switch(kmerString[i]){
-                        case 'A':
-                                *binKmer = (*binKmer<<2) | 0x00;
-                                break;
-                        case 'C':
-                                *binKmer = (*binKmer<<2) | 0x01;
-                                break;
-                        case 'G':
-                                *binKmer = (*binKmer<<2) | 0x02;
-                                break;
-                        case 'T':
-                                *binKmer = (*binKmer<<2) | 0x03;
-                                break;
-                }
+void ToKmerBin(vector<uint32_t>&binKmer,const char* read,int length){
+	uint32_t conv = 0;
+	int mult = length/16;
+	int rest = length%16;
+	for(int j = 0; j<mult;j++){
+		for(int i=0; i<16;i++){
+			conv = conv<<2;
+                	switch(read[i]){
+                        	case 'A':
+                                	conv = conv | 0x00;
+                                	break;
+                        	case 'C':
+                                	conv = conv | 0x01;
+                                	break;
+                        	case 'G':
+                                	conv = conv | 0x02;
+                                	break;
+                        	case 'T':
+                                	conv = conv | 0x03;
+                                	break;
+                	}
+        	}
+		binKmer.push_back(conv);
+	}
+        for(int i=0; i<rest;i++){
+                        conv = conv<<2;
+                        switch(read[mult*16+i]){
+                                case 'A':
+                                        conv = conv | 0x00;
+                                        break;
+                                case 'C':
+                                        conv = conv | 0x01;
+                                        break;
+                                case 'G':
+                                        conv = conv | 0x02;
+                                        break;
+                                case 'T':
+                                        conv = conv | 0x03;
+                                        break;
+                        }
+	
         }
+	for(int i = 0; i<16-rest;i++){
+		conv = conv<<2;
+	}
+        binKmer.push_back(conv);
 
 
 }
+
+
+
+
 void printBin(char*toPrint){
         unsigned char *b = (unsigned char*) toPrint;
         unsigned char byte;
@@ -611,7 +630,7 @@ DeNovoCount_new(vector<filedata> & allfiles,
     double denovocount = omp_get_wtime();
     double cardinality;
     size_t totreads = 0;
-	kmer_len = 16;
+    vector<vector<std::string>> sequenze(MAXTHREADS);
     for(auto itr=allfiles.begin(); itr!=allfiles.end(); itr++) 
     {
         #pragma omp parallel
@@ -635,7 +654,12 @@ DeNovoCount_new(vector<filedata> & allfiles,
                     // remember that the last valid position is length()-1
                     int len = seqs[i].length();
                     double rerror = 0.0;
-
+		    std::string re = seqs[i];
+	            char rea[re.length()];
+		    
+		    strcpy(rea,re.c_str());
+		     sequenze[MYTHREAD].push_back(rea);
+			
                     for(int j=0; j<=len-kmer_len; j++)  
                     {
                         std::string kmerstrfromfastq = seqs[i].substr(j, kmer_len);
@@ -700,6 +724,8 @@ DeNovoCount_new(vector<filedata> & allfiles,
 
 
 ////////////////////////////////////////////////////////////////////////////
+
+
 	uint64_t totkmers = 0;
 	for(int i = 0 ; i < MAXTHREADS; ++i){
 		totkmers += allkmers[i].size();
@@ -733,50 +759,22 @@ DeNovoCount_new(vector<filedata> & allfiles,
 	int errors = 0;
 	
 ///////////////////////////////
-	vector<uint32_t> h_reads(0);
+	vector<uint32_t> h_reads;
         uint32_t conv;
 	int kmer_size = 16;
 	std::string reads;
 	char* chunk = new char[kmer_size];
-	inputConverter(reads,allfiles[0].filename );
-	
-	std::string new_reads;
-	
-	//new_reads = reads.substr(0,reads.size()-0);
-	
-	//printf("%s\n",new_reads.c_str());
-	
-	vector<uint32_t> h_test(0);
-	
-	int data_len = reads.size();
-	int segment = data_len/kmer_size;
-	int remain = data_len%kmer_size;
-	for(int i = 0; i < segment*kmer_size ;i+=kmer_size){
-		strcpy(chunk,reads.substr(i,kmer_size).c_str());
-		ToKmerBin(&conv, chunk);
-		h_reads.push_back(conv);
-	}
-	for(int i = 0; i<data_len-kmer_size; i++){
-		strcpy(chunk, reads.substr(i,kmer_size).c_str());
-		ToKmerBin(&conv, chunk);
-		h_test.push_back(conv);
-		if(i<5){
-			printf("chunk : %s\n",chunk);
-			for (int j = 31; 0 <= j; j--) {
-                                printf("%c", (conv & (1 << j)) ? '1' : '0');
-                        }
-                	printf("\n");
-		}
-	}
-	strcpy(chunk, reads.substr(segment*kmer_size, remain).c_str());
-	ToKmerBin(&conv, chunk);
-	h_reads.push_back(conv);
-	//printf("%d\n",h_reads.size());
+		
+        for(int i = 0; i<sequenze.size();i++){
+                //printf("i :%d\n",i);
+                for(int j = 0; j<sequenze[i].size();j++){
+			const char *read = sequenze[i][j].c_str();
+                        ToKmerBin(h_reads,read,strlen(read));
 
+                }
+	}
 	
-	//printf("%s\n",reads);	
-	//conv = 0;
-	//h_reads.push_back(conv);
+	
 ///////////////////////////////
 
 	
@@ -785,6 +783,7 @@ DeNovoCount_new(vector<filedata> & allfiles,
 	int bella_one =0 ;
 	int bella_two = 0;
 	int bella_three = 0;
+	vector<int> vals;
 	std::vector<uint32_t> h_query;
 	 for (int k = 0; k < totkmers; ++k)
 	 {
@@ -821,7 +820,9 @@ DeNovoCount_new(vector<filedata> & allfiles,
                         val = countsdenovo.find(lexsmall);
        		//	printf("val : %d", val);                
 	 	//	bool b = h_filter.has(&(h_kmers[kmerid*N_LONGS]));
-		        if(val == 3){
+		  //     	printf("%d\n",val);
+			vals.push_back(val);
+			if(val == 3){
 				bella_three++;	
 			}
 			if (val == 2){
@@ -839,18 +840,18 @@ DeNovoCount_new(vector<filedata> & allfiles,
 		//	}
 			
 	 	}	
-	 }
+	 }/*
 	for(int i = 0; i<h_query.size();i++){
 		printf("index : %d h_query : %"PRIu32"\n",i,h_query[i]);
 	}
-
+*/
 	//testing the conversion
         uint32_t myKey;
         int index_vector = 0;
         int index_array = 0;
 	uint32_t first_piece=0;
 	uint32_t second_piece=0;
-        for(int j=0;j<totkmers;j++){
+        /*for(int j=0;j<totkmers;j++){
                 index_vector = j/16;
                 index_array = j%16;
 		printf("index kmer: %d\n",j);
@@ -914,7 +915,7 @@ DeNovoCount_new(vector<filedata> & allfiles,
 		}	
         }
 
-
+	*/
 
 	printf("starting gpu hash");
 	printf("\n\n\n\n");
@@ -922,15 +923,21 @@ DeNovoCount_new(vector<filedata> & allfiles,
 	vector<uint32_t> h_result;
 	
 	//h_result = HashTableGPU(h_query, totkmers);
-	for(int i =0; i<h_reads.size();i++){
+/*	for(int i =0; i<h_reads.size();i++){
 		printf("read %d value %d\n",i,h_reads[i]);
-	}	
+	}	*/
 	h_result = HashTableGPU(h_reads,h_reads.size(),16,totkmers);
 	auto tgpu2 = Clock::now();	
 	int three = 0;
 	int two = 0;
 	int one = 0;
 	for(int i=0; i<totkmers;i++){
+		if(vals[i]!=h_result[i]){
+			printf("error line %d\n",i);
+			cout<<h_result[i]<<'\n';
+	                cout<<vals[i]<<'\n';
+
+		}
 		//cout<<h_result[i]<<'\n';
 		if(h_result[i] == 3){
 			three++;
