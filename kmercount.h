@@ -385,98 +385,56 @@ void inputConverter(std::string& reads,char* filename){
   	else cout << "Unable to open file"; 
 	
 }
-
-void ToKmerStr(uint32_t binKmer, char* kmerString){
-	char c[4]={'A','C','G','T'};
-	
-	
-}
-
-void ToKmerBin(uint32_t*binKmer,const char* kmerString){
-	        switch(kmerString[0]){
-                        case 'A':
-                                *binKmer = 0x00;
-                                break;
-                        case 'C':
-                                *binKmer = 0x01;
-                                break;
-                        case 'G':
-                                *binKmer =  0x02;
-                                break;
-                        case 'T':
-                                *binKmer =  0x03;
-                                break;
-                }
-	for(int i=1; i<16;i++){
-                switch(kmerString[i]){
-                        case 'A':
-                                *binKmer = (*binKmer<<2) | 0x00;
-                                break;
-                        case 'C':
-                                *binKmer = (*binKmer<<2) | 0x01;
-                                break;
-                        case 'G':
-                                *binKmer = (*binKmer<<2) | 0x02;
-                                break;
-                        case 'T':
-                                *binKmer = (*binKmer<<2) | 0x03;
-                                break;
-                }
+void convCharToBin(const char*array, std::vector<uint32_t> &readsBin){
+    int length = strlen(array);
+    uint32_t conv = 0;
+    int mult = length/16;
+    int rest =  length%16;
+    for(int i = 0; i< mult; i++){
+        for(int j = 0; j<16;j++){
+            conv = conv<<2;
+            switch(array[i*16+j]){
+                case 'A':
+                    conv = conv | 0x00;
+                    break;
+                case 'C':
+                    conv = conv | 0x01;
+                    break;
+                case 'G':
+                    conv = conv | 0x02;
+                    break;
+                case 'T':
+                    conv = conv | 0x03;
+                    break;
+            }
         }
+        readsBin.push_back(conv);
+        conv = 0;
+    }
 
-
-}
-void ToKmerBin(vector<uint32_t>&binKmer,const char* read,int length){
-	uint32_t conv = 0;
-	int mult = length/16;
-	int rest = length%16;
-	for(int j = 0; j<mult;j++){
-		for(int i=0; i<16;i++){
-			conv = conv<<2;
-                	switch(read[i]){
-                        	case 'A':
-                                	conv = conv | 0x00;
-                                	break;
-                        	case 'C':
-                                	conv = conv | 0x01;
-                                	break;
-                        	case 'G':
-                                	conv = conv | 0x02;
-                                	break;
-                        	case 'T':
-                                	conv = conv | 0x03;
-                                	break;
-                	}
-        	}
-		binKmer.push_back(conv);
-	}
-        for(int i=0; i<rest;i++){
-                        conv = conv<<2;
-                        switch(read[mult*16+i]){
-                                case 'A':
-                                        conv = conv | 0x00;
-                                        break;
-                                case 'C':
-                                        conv = conv | 0x01;
-                                        break;
-                                case 'G':
-                                        conv = conv | 0x02;
-                                        break;
-                                case 'T':
-                                        conv = conv | 0x03;
-                                        break;
-                        }
-	
+    for(int j = 0; j<rest;j++){
+        conv = conv<<2;
+        switch(array[16*mult+j]){
+            case 'A':
+                conv = conv | 0x00;
+                break;
+            case 'C':
+                conv = conv | 0x01;
+                break;
+            case 'G':
+                conv = conv | 0x02;
+                break;
+            case 'T':
+                conv = conv | 0x03;
+                break;
         }
-	for(int i = 0; i<16-rest;i++){
-		conv = conv<<2;
-	}
-        binKmer.push_back(conv);
+    }
 
-
+    for(int j = 0;j<16-rest;j++){
+        conv = conv<<2;
+    }
+    readsBin.push_back(conv);
 }
-
-
 
 
 void printBin(char*toPrint){
@@ -578,8 +536,53 @@ dictionary_t accurateCount(double* duration_bella,vector < vector<Kmer> > allkme
     return countsdenovo;
 }
 
-std::vector<uint32_t> HashTableGPU(std::vector<uint32_t>& to_insert, int len,int kmer_len,int totkmers){
-	uint32_t num_keys = totkmers;
+void testHashThreads(uint32_t* d_key,uint32_t num_vec,int*num_kmers_read,int num_kmers, int num_of_reads){
+int post  = 0;
+int index_vector = 0;
+int index_array = 0;
+uint32_t myKey = 0;
+int div = 0;
+int prev = 0;
+int start_index = 0;
+int num_char =16;
+
+for(int tid = 0; tid<num_kmers; tid++){
+        for(int i=0;i<num_of_reads;i++){
+                post += num_kmers_read[i];
+		printf("------------------------------------------------------\n");
+		printf("prev  : %d  post : %d  tid : %d\n", prev, post, tid);
+                if(tid>=prev&&tid<post){
+                        //calculate index of the block : tid is the id of the kmer, by subtracting prev it just start from zero
+                        index_vector = start_index + (tid-prev)/16;
+                        index_array = (tid-prev)%16;
+
+                        myKey = ((d_key[index_vector]<<(2*index_array))|
+                                (index_array!=0
+                                        ?(d_key[index_vector+1]>>(2*(16-index_array)))
+                                        :0x0));
+			printf("index_vector : %d  index_array : %d \n",index_vector, index_array);
+			for (int k = 31; 0 <= k; k--) {
+				printf("%c", (myKey & (1 << k)) ? '1' : '0');
+                	}
+			printf("\n");
+//                        myBucket = slab_hash.computeBucket(myKey);
+//                        to_insert = 1;
+
+                        break;
+                }
+        //calculate where the next block starts
+                div = num_kmers_read[i]+num_char-1;
+                start_index += div/num_char + (div % num_char != 0);
+                prev+=num_kmers_read[i];
+        }
+        start_index = 0;
+        prev = 0;
+        post = 0;
+}
+}
+
+std::vector<uint32_t> HashTableGPU(std::vector<uint32_t>& h_kmers_to_insert,int kmer_len,int num_kmers,vector<int> & h_num_kmers_read){
+	uint32_t num_keys = num_kmers;
 	assert(num_keys>0);
 	float expected_chain = 1;
 	uint32_t num_elements_per_unit = 15;
@@ -590,16 +593,19 @@ std::vector<uint32_t> HashTableGPU(std::vector<uint32_t>& to_insert, int len,int
 	
 	using KeyT = uint32_t;
 	using ValueT = uint32_t;
-    	std::vector<ValueT> h_result(totkmers);
-	gpu_hash_table<KeyT, ValueT, SlabHashTypeT::ConcurrentMap>
-        	hash_table(len+totkmers, num_buckets, 0, 1);
+    	std::vector<ValueT> h_result(num_kmers);
 
-        float insert_time =
-                hash_table.hash_insert(to_insert.data(), len, totkmers);
-        float search_time =
-                hash_table.hash_search(to_insert.data(), h_result.data(), len, totkmers);
+	testHashThreads(h_kmers_to_insert.data(), h_kmers_to_insert.size(), h_num_kmers_read.data(), num_kmers, h_num_kmers_read.size());
+
+	gpu_hash_table<KeyT, ValueT, SlabHashTypeT::ConcurrentMap>
+        	hash_table(h_num_kmers_read.size(),h_kmers_to_insert.size(), num_buckets, 0, 1);
+		
+       // float insert_time =
+      //          hash_table.hash_insert(h_kmers_to_insert.data(), h_kmers_to_insert.size(),h_num_kmers_read.data(), num_kmers);
+        //float search_time =
+          //      hash_table.hash_search(to_insert.data(), h_result.data(), len, totkmers);
 	
-	printf("insert time : %f, search time : %f\n",insert_time,search_time);
+	//printf("insert time : %f, search time : %f\n",insert_time,search_time);
 	return h_result;
 }
 
@@ -760,17 +766,19 @@ DeNovoCount_new(vector<filedata> & allfiles,
 	
 ///////////////////////////////
 	vector<uint32_t> h_reads;
+	vector<int> h_num_of_kmers_read;
         uint32_t conv;
 	int kmer_size = 16;
 	std::string reads;
 	char* chunk = new char[kmer_size];
-		
+	int num_kmers=0;
         for(int i = 0; i<sequenze.size();i++){
                 //printf("i :%d\n",i);
                 for(int j = 0; j<sequenze[i].size();j++){
 			const char *read = sequenze[i][j].c_str();
-                        ToKmerBin(h_reads,read,strlen(read));
-
+			convCharToBin(read,h_reads);
+			h_num_of_kmers_read.push_back(strlen(read)-kmer_size+1);
+			num_kmers+=(strlen(read)-kmer_size+1);
                 }
 	}
 	
@@ -811,7 +819,7 @@ DeNovoCount_new(vector<filedata> & allfiles,
 	 		}
 			h_kmer = sx;
 			uint32_t conv;
-			ToKmerBin(&conv, sx);
+			//ToKmerBin(&conv, sx);
 			h_query.push_back(conv);
                         Kmer mykmer(h_kmer.c_str());
                         Kmer lexsmall = mykmer.rep();
@@ -851,93 +859,19 @@ DeNovoCount_new(vector<filedata> & allfiles,
         int index_array = 0;
 	uint32_t first_piece=0;
 	uint32_t second_piece=0;
-        /*for(int j=0;j<totkmers;j++){
-                index_vector = j/16;
-                index_array = j%16;
-		printf("index kmer: %d\n",j);
-		first_piece = h_reads[index_vector]<<(2*index_array);
-		printf("first piece: ");
-		for (int i = 31; 0 <= i; i--) {
-                        printf("%c", (first_piece & (1 << i)) ? '1' : '0');
-                }
-		printf("\n");
-
-		second_piece =index_array!=0
-					?(h_reads[index_vector+1]>>(2*(16-index_array)))
-                                        :0x0;
-
-		printf("second piece: ");
-                for (int i = 31; 0 <= i; i--) {
-                        printf("%c", (second_piece & (1 << i)) ? '1' : '0');
-                }
-                printf("\n");
-		
-
-                myKey =(uint32_t) ((h_reads[index_vector]<<(2*index_array))|
-			(index_array!=0
-					?(h_reads[index_vector+1]>>(2*(16-index_array)))
-					:0x0));
-		
-		printf("index vector : %d\n",index_vector);
-		printf("index array : %d\n",index_array);
-		printf("primo pezzo array: ");
-		for (int i = 31; 0 <= i; i--) {
-			printf("%c", (h_reads[index_vector] & (1 << i)) ? '1' : '0');
-                }
-		printf("\n");
-		printf("secondo pezzo array: ");
-                for (int i = 31; 0 <= i; i--) {
-                        printf("%c", (h_reads[index_vector+1] & (1 << i)) ? '1' : '0');
-                }
-		printf("\n");
-		printf("myKey: ");
-		for (int i = 31; 0 <= i; i--) {
-                        printf("%c", (myKey & (1 << i)) ? '1' : '0');
-                }
-		printf("\n");
-		if(myKey!=h_test[j]){
-			printf("error at %d \n",j);
-			printf(" myKey: ");
-			for (int i = 31; 0 <= i; i--) {
-				printf("%c", (myKey & (1 << i)) ? '1' : '0');
-  			}
-			printf("\n");
-			printf("%" PRIu32 "\n",myKey);
-			cout<<"my key cout"<<myKey<<'\n';
-			printf("h_test: ");
-			for (int i = 31; 0 <= i; i--) {
-                                printf("%c", (h_test[j] & (1 << i)) ? '1' : '0');
-                        }
-			printf("\n");
-			printf("%" PRIu32 "\n",h_test[j]);
-			cout<<"h test "<< h_test[j]<<'\n';
-			//cout<<h_test[j]&myKey<<'\n';
-		}	
-        }
-
-	*/
 
 	printf("starting gpu hash");
 	printf("\n\n\n\n");
 	auto tgpu1 = Clock::now();
 	vector<uint32_t> h_result;
 	
-	//h_result = HashTableGPU(h_query, totkmers);
-/*	for(int i =0; i<h_reads.size();i++){
-		printf("read %d value %d\n",i,h_reads[i]);
-	}	*/
-	h_result = HashTableGPU(h_reads,h_reads.size(),16,totkmers);
+	h_result = HashTableGPU(h_reads,16,num_kmers,h_num_of_kmers_read);
 	auto tgpu2 = Clock::now();	
 	int three = 0;
 	int two = 0;
 	int one = 0;
 	for(int i=0; i<totkmers;i++){
-		if(vals[i]!=h_result[i]){
-			printf("error line %d\n",i);
-			cout<<h_result[i]<<'\n';
-	                cout<<vals[i]<<'\n';
-
-		}
+		
 		//cout<<h_result[i]<<'\n';
 		if(h_result[i] == 3){
 			three++;
