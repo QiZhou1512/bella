@@ -1,1 +1,1 @@
-data_test.fastq
+/global/cscratch1/sd/qizhou/synthetic_datasets/abaumannii30x_0001.fastq
