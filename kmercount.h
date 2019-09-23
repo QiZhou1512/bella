@@ -624,7 +624,6 @@ std::vector<uint32_t> HashTableGPU(std::vector<uint32_t>& h_kmers_to_insert,vect
 	printf("insert time%f\n",insert_time);
 	 float search_time =
                 hash_table.hash_search(h_kmers_to_insert.data(),h_index.data(), h_result.data(),num_kmers);
-	
 	printf("insert time : %f, search time : %f\n",insert_time,search_time);
 	return h_result;
 }
@@ -800,6 +799,7 @@ DeNovoCount_new(vector<filedata> & allfiles,
 			num_kmers+=(strlen(read)-kmer_size+1);
                 }
 	}
+<<<<<<< HEAD
 	*/
 	
 ///////////////////////////////
@@ -872,12 +872,10 @@ DeNovoCount_new(vector<filedata> & allfiles,
 	 	}	
 	 }
 
-/*
-	for(int i = 0; i<h_query.size();i++){
-		printf("index : %d h_query : %"PRIu32"\n",i,h_query[i]);
-	}
-*/
-	//testing the conversion
+        int index_vector = 0;
+        int index_array = 0;
+	uint32_t first_piece=0;
+	uint32_t second_piece=0;
 
 	printf("starting gpu hash");
 	printf("\n\n\n\n");
