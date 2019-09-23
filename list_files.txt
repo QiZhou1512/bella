@@ -1,0 +1,3 @@
+/global/cscratch1/sd/qizhou/synthetic_datasets/vvulnificus30x_0001.fastq
+/global/cscratch1/sd/qizhou/synthetic_datasets/abaumannii30x_0001.fastq
+/global/cscratch1/sd/qizhou/real_datasets/escherichia_coli_k12_100x.fastq

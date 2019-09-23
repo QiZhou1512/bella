@@ -436,6 +436,18 @@ void convCharToBin(const char*array, std::vector<uint32_t> &readsBin){
     readsBin.push_back(conv);
 }
 
+void convCharToBin64(const char* array, vector<uint32_t> &h_kmers,vector<uint32_t> &h_index,int kmer_len,int * conv_table){
+    uint32_t head = 0;
+    uint32_t tail = 0;
+
+    head |= conv_table[(int)array[0]];
+    for(int j = 1; j<17;j++){
+            tail = tail<<2;
+            tail |=conv_table[(int)array[j]];
+    }
+    h_index.push_back(head);
+    h_kmers.push_back(tail);
+}
 
 void printBin(char*toPrint){
         unsigned char *b = (unsigned char*) toPrint;
@@ -581,7 +593,7 @@ for(int tid = 0; tid<num_kmers; tid++){
 }
 }
 
-std::vector<uint32_t> HashTableGPU(std::vector<uint32_t>& h_kmers_to_insert,int kmer_len,int num_kmers,vector<int> & h_num_kmers_read){
+std::vector<uint32_t> HashTableGPU(std::vector<uint32_t>& h_kmers_to_insert,vector<uint32_t> h_index,int kmer_len,uint64_t num_kmers){
 	uint32_t num_keys = num_kmers;
 	assert(num_keys>0);
 	float expected_chain = 1;
@@ -598,12 +610,20 @@ std::vector<uint32_t> HashTableGPU(std::vector<uint32_t>& h_kmers_to_insert,int 
 //	testHashThreads(h_kmers_to_insert.data(), h_kmers_to_insert.size(), h_num_kmers_read.data(), num_kmers, h_num_kmers_read.size());
 
 	gpu_hash_table<KeyT, ValueT, SlabHashTypeT::ConcurrentMap>
-        	hash_table(num_kmers,h_num_kmers_read.size(),h_kmers_to_insert.size(), num_buckets, 0, 1);
-		
+        	hash_table(num_kmers, num_buckets, 0, 1);
+//	for(int i = 0; i<200;i++){
+//		printf("finish insert");
+//	}
+	printf("h_kmers_to insert size : %d num kmers : %d\n",h_kmers_to_insert.size(),num_kmers);	
         float insert_time =
-                hash_table.hash_insert(h_kmers_to_insert.data(), h_kmers_to_insert.size(),h_num_kmers_read.data(), num_kmers);
-        float search_time =
-                hash_table.hash_search(h_kmers_to_insert.data(), h_result.data(), h_kmers_to_insert.size(),h_num_kmers_read.data(), num_kmers);
+                hash_table.hash_insert(h_kmers_to_insert.data(),h_index.data(),num_kmers);
+       		printf("finish insert");
+//	for(int i = 0; i<200;i++){
+//	printf("finish insert");
+//	}
+	printf("insert time%f\n",insert_time);
+	 float search_time =
+                hash_table.hash_search(h_kmers_to_insert.data(),h_index.data(), h_result.data(),num_kmers);
 	
 	printf("insert time : %f, search time : %f\n",insert_time,search_time);
 	return h_result;
@@ -632,10 +652,11 @@ DeNovoCount_new(vector<filedata> & allfiles,
     vector < vector<Kmer> > allkmers(MAXTHREADS);
     vector < vector<double> > allquals(MAXTHREADS);
     vector < HyperLogLog > hlls(MAXTHREADS, HyperLogLog(12));   // std::vector fill constructor
-	kmer_len =16;
     double denovocount = omp_get_wtime();
     double cardinality;
     size_t totreads = 0;
+	
+	
     vector<vector<std::string>> sequenze(MAXTHREADS);
     for(auto itr=allfiles.begin(); itr!=allfiles.end(); itr++) 
     {
@@ -663,8 +684,6 @@ DeNovoCount_new(vector<filedata> & allfiles,
 		    std::string re = seqs[i];
 	            char rea[re.length()];
 		    
-		    strcpy(rea,re.c_str());
-		     sequenze[MYTHREAD].push_back(rea);
 			
                     for(int j=0; j<=len-kmer_len; j++)  
                     {
@@ -731,8 +750,7 @@ DeNovoCount_new(vector<filedata> & allfiles,
 
 ////////////////////////////////////////////////////////////////////////////
 
-
-	uint64_t totkmers = 0;
+	uint32_t totkmers = 0;
 	for(int i = 0 ; i < MAXTHREADS; ++i){
 		totkmers += allkmers[i].size();
 	}
@@ -740,7 +758,7 @@ DeNovoCount_new(vector<filedata> & allfiles,
     uint64_t *h_kmers = (uint64_t *) malloc(sizeof(*h_kmers) * totkmers * N_LONGS);
     
     uint64_t tmp = 0;
-    for(int i = 0; i< MAXTHREADS; i++){
+    for(uint32_t i = 0; i< MAXTHREADS; i++){
         for( int j = 0; j< allkmers[i].size();++j){
             h_kmers[tmp++] = allkmers[i][j].getArray()[0];
             h_kmers[tmp++] = allkmers[i][j].getArray()[1];
@@ -757,22 +775,21 @@ DeNovoCount_new(vector<filedata> & allfiles,
     	double duration_bella;
     	dictionary_t countsdenovo;
     	countsdenovo =  accurateCount(&duration_bella,allkmers);
-
-	std::string h_kmer;
+	printf("tbella: %.2f \n", duration_bella);
+	string h_kmer;
 	int count = 0;
 	int singleton = 0;
 	int tot = 0;
 	int errors = 0;
-	printf("compressing... \n");	
 ///////////////////////////////
-	vector<uint32_t> h_reads;
-	vector<int> h_num_of_kmers_read;
-        uint32_t conv;
-	int kmer_size = 16;
-	std::string reads;
-	char* chunk = new char[kmer_size];
-	int num_kmers=0;
-        for(int i = 0; i<sequenze.size();i++){
+	//vector<uint32_t> h_reads;
+	//vector<int> h_num_of_kmers_read;
+        //uint32_t conv;
+	//int kmer_size = 17;
+	//std::string reads;
+	//char* chunk = new char[kmer_size];
+	//int num_kmers=0;
+        /*for(int i = 0; i<sequenze.size();i++){
                 //printf("i :%d\n",i);
                 for(int j = 0; j<sequenze[i].size();j++){
 			const char *read = sequenze[i][j].c_str();
@@ -783,21 +800,27 @@ DeNovoCount_new(vector<filedata> & allfiles,
 			num_kmers+=(strlen(read)-kmer_size+1);
                 }
 	}
-	
+	*/
 	
 ///////////////////////////////
 
-	
+	printf("conv...\n");
 	//HASHTABLE
         //building hash table
+	int conv_table[100]={0};
+	conv_table[65] = 0x00;
+	conv_table[67] = 0x01;
+        conv_table[71] = 0x02;
+	conv_table[84] = 0x03;
 	int bella_one =0 ;
 	int bella_two = 0;
 	int bella_three = 0;
 	vector<int> vals;
-	/*std::vector<uint32_t> h_query;
-	 for (int k = 0; k < totkmers; ++k)
+	vector<uint32_t> h_query;
+	vector<uint32_t> h_index;
+	 for (uint32_t k = 0; k < totkmers; ++k)
 	 {
-	 	int kmerid = k;
+	 	uint32_t kmerid = k;
 	 	{
 	 		uint64_t *kmerptr = &(h_kmers[kmerid * N_LONGS]);
 		
@@ -820,9 +843,7 @@ DeNovoCount_new(vector<filedata> & allfiles,
 	 			}
 	 		}
 			h_kmer = sx;
-			uint32_t conv;
-			//ToKmerBin(&conv, sx);
-			h_query.push_back(conv);
+			convCharToBin64(sx, h_query,h_index,17, conv_table);
                         Kmer mykmer(h_kmer.c_str());
                         //Kmer lexsmall = mykmer.rep();
  
@@ -840,39 +861,35 @@ DeNovoCount_new(vector<filedata> & allfiles,
 			}	
 			if(val == 1){
 				bella_one++;
-			}	
+			}
 		//	if(!b){
 		//		errors++;
 		//	}
 		//	if(b){
 		//		count++;
 		//		tot += val;
-		//	}
-			
+		//	}	
 	 	}	
-	 }*//*
+	 }
+
+/*
 	for(int i = 0; i<h_query.size();i++){
 		printf("index : %d h_query : %"PRIu32"\n",i,h_query[i]);
 	}
 */
 	//testing the conversion
-        uint32_t myKey;
-        int index_vector = 0;
-        int index_array = 0;
-	uint32_t first_piece=0;
-	uint32_t second_piece=0;
 
 	printf("starting gpu hash");
 	printf("\n\n\n\n");
 
 	auto tgpu1 = Clock::now();
 	vector<uint32_t> h_result;
-	h_result = HashTableGPU(h_reads,16,num_kmers,h_num_of_kmers_read);
+	h_result = HashTableGPU(h_query,h_index,17,totkmers);
 	auto tgpu2 = Clock::now();	
 	int three = 0;
 	int two = 0;
 	int one = 0;
-/*	for(int i=0; i<num_kmers;i++){
+	for(uint32_t i=0; i<totkmers;i++){
 	//	if(h_result[i]==-1){
 	//		printf("error\n");
 	//	}	
@@ -886,7 +903,7 @@ DeNovoCount_new(vector<filedata> & allfiles,
 		if(h_result[i] == 1){
 			one++;
 		}
-	}*/
+	}
 	printf("h_result size : %d, totkmers : %d \n",h_result.size(),totkmers);
 	printf("one : %d,bella_one: %d, two: %d,bella_two : %d,three : %d, bella_three: %d \n"
 	,one,bella_one, two,bella_two, three,bella_three);
