@@ -654,9 +654,8 @@ DeNovoCount_new(vector<filedata> & allfiles,
     double denovocount = omp_get_wtime();
     double cardinality;
     size_t totreads = 0;
+    	
 	
-	
-    vector<vector<std::string>> sequenze(MAXTHREADS);
     for(auto itr=allfiles.begin(); itr!=allfiles.end(); itr++) 
     {
         #pragma omp parallel
@@ -681,7 +680,6 @@ DeNovoCount_new(vector<filedata> & allfiles,
                     int len = seqs[i].length();
                     double rerror = 0.0;
 		    std::string re = seqs[i];
-	            char rea[re.length()];
 		    
 			
                     for(int j=0; j<=len-kmer_len; j++)  
@@ -762,7 +760,7 @@ DeNovoCount_new(vector<filedata> & allfiles,
             h_kmers[tmp++] = allkmers[i][j].getArray()[0];
             h_kmers[tmp++] = allkmers[i][j].getArray()[1];
             h_kmers[tmp++] = allkmers[i][j].getArray()[2];
-            h_kmers[tmp++] = allkmers[i][j].getArray()[3];
+	    h_kmers[tmp++] = allkmers[i][j].getArray()[3];
         }
 
     }
@@ -773,36 +771,8 @@ DeNovoCount_new(vector<filedata> & allfiles,
 
     	double duration_bella;
     	dictionary_t countsdenovo;
-    	countsdenovo =  accurateCount(&duration_bella,allkmers);
+    	countsdenovo = accurateCount(&duration_bella,allkmers);
 	printf("tbella: %.2f \n", duration_bella);
-	string h_kmer;
-	int count = 0;
-	int singleton = 0;
-	int tot = 0;
-	int errors = 0;
-///////////////////////////////
-	//vector<uint32_t> h_reads;
-	//vector<int> h_num_of_kmers_read;
-        //uint32_t conv;
-	//int kmer_size = 17;
-	//std::string reads;
-	//char* chunk = new char[kmer_size];
-	//int num_kmers=0;
-        /*for(int i = 0; i<sequenze.size();i++){
-                //printf("i :%d\n",i);
-                for(int j = 0; j<sequenze[i].size();j++){
-			const char *read = sequenze[i][j].c_str();
-			convCharToBin(read,h_reads);
-			//printf("read number : %d\n",j);
-			//printf("%s\n",read);
-			h_num_of_kmers_read.push_back(strlen(read)-kmer_size+1);
-			num_kmers+=(strlen(read)-kmer_size+1);
-                }
-	}
-<<<<<<< HEAD
-	*/
-	
-///////////////////////////////
 
 	printf("conv...\n");
 	//HASHTABLE
@@ -815,6 +785,7 @@ DeNovoCount_new(vector<filedata> & allfiles,
 	int bella_one =0 ;
 	int bella_two = 0;
 	int bella_three = 0;
+	string h_kmer;
 	vector<int> vals;
 	vector<uint32_t> h_query;
 	vector<uint32_t> h_index;
@@ -828,7 +799,6 @@ DeNovoCount_new(vector<filedata> & allfiles,
 	 		char *sx = (char *) malloc(1024);
 	 		char *s = sx;
 	 		memset(s, '\0', 1024);
-	 	//	printf("kmerid %d\n", kmerid);
 	 		for (i = 0; i < Kmer::k; i++)
 	 		{
 	 			j = i % 32;
@@ -845,14 +815,15 @@ DeNovoCount_new(vector<filedata> & allfiles,
 			h_kmer = sx;
 			convCharToBin64(sx, h_query,h_index,17, conv_table);
                         Kmer mykmer(h_kmer.c_str());
-                        //Kmer lexsmall = mykmer.rep();
- 
+                        Kmer lexsmall = mykmer.rep();
+			
+			if(k==0){
+				printf("kmer : %s\n",h_kmer.c_str());
+			} 
 			int val=0;
+			//TODO errore out of rangw
                         val = countsdenovo.find(mykmer);
-       		//	printf("val : %d", val);                
-	 	//	bool b = h_filter.has(&(h_kmers[kmerid*N_LONGS]));
-		  //     	printf("%d\n",val);
-			vals.push_back(val);
+			//vals.push_back(val);
 			if(val == 3){
 				bella_three++;	
 			}
@@ -862,20 +833,9 @@ DeNovoCount_new(vector<filedata> & allfiles,
 			if(val == 1){
 				bella_one++;
 			}
-		//	if(!b){
-		//		errors++;
-		//	}
-		//	if(b){
-		//		count++;
-		//		tot += val;
-		//	}	
 	 	}	
 	 }
 
-        int index_vector = 0;
-        int index_array = 0;
-	uint32_t first_piece=0;
-	uint32_t second_piece=0;
 
 	printf("starting gpu hash");
 	printf("\n\n\n\n");
@@ -888,10 +848,9 @@ DeNovoCount_new(vector<filedata> & allfiles,
 	int two = 0;
 	int one = 0;
 	for(uint32_t i=0; i<totkmers;i++){
-	//	if(h_result[i]==-1){
-	//		printf("error\n");
-	//	}	
-	//	cout<<h_result[i]<<'\n';
+		if(h_result[i]==-1){
+			printf("error\n");
+		}
 		if(h_result[i] == 3){
 			three++;
 		}
