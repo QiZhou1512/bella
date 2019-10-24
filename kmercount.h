@@ -385,68 +385,20 @@ void inputConverter(std::string& reads,char* filename){
   	else cout << "Unable to open file"; 
 	
 }
-void convCharToBin(const char*array, std::vector<uint32_t> &readsBin){
-    int length = strlen(array);
-    uint32_t conv = 0;
-    int mult = length/16;
-    int rest =  length%16;
-    for(int i = 0; i< mult; i++){
-        for(int j = 0; j<16;j++){
-            conv = conv<<2;
-            switch(array[i*16+j]){
-                case 'A':
-                    conv = conv | 0x00;
-                    break;
-                case 'C':
-                    conv = conv | 0x01;
-                    break;
-                case 'G':
-                    conv = conv | 0x02;
-                    break;
-                case 'T':
-                    conv = conv | 0x03;
-                    break;
-            }
-        }
-        readsBin.push_back(conv);
-        conv = 0;
-    }
-
-    for(int j = 0; j<rest;j++){
-        conv = conv<<2;
-        switch(array[16*mult+j]){
-            case 'A':
-                conv = conv | 0x00;
-                break;
-            case 'C':
-                conv = conv | 0x01;
-                break;
-            case 'G':
-                conv = conv | 0x02;
-                break;
-            case 'T':
-                conv = conv | 0x03;
-                break;
-        }
-    }
-
-    for(int j = 0;j<16-rest;j++){
-        conv = conv<<2;
-    }
-    readsBin.push_back(conv);
-}
 
 void convCharToBin64(const char* array, vector<uint32_t> &h_kmers,vector<uint32_t> &h_index,int kmer_len,int * conv_table){
-    uint32_t head = 0;
-    uint32_t tail = 0;
-
-    head |= conv_table[(int)array[0]];
-    for(int j = 1; j<17;j++){
-            tail = tail<<2;
-            tail |=conv_table[(int)array[j]];
-    }
-    h_index.push_back(head);
-    h_kmers.push_back(tail);
+	uint32_t head = 0;
+   	uint32_t tail = 0;
+    	for(int i = 0; i<(kmer_len-16);i++){
+		head |= conv_table[(int)array[i]];
+	}
+    
+   	for(int j = (kmer_len-16); j<kmer_len;j++){
+            	tail = tail<<2;
+            	tail |=conv_table[(int)array[j]];
+    	}
+    	h_index.push_back(head);
+    	h_kmers.push_back(tail);
 }
 
 void printBin(char*toPrint){
@@ -782,7 +734,7 @@ DeNovoCount_new(vector<filedata> & allfiles,
 	conv_table[67] = 0x01;
         conv_table[71] = 0x02;
 	conv_table[84] = 0x03;
-	int bella_one =0 ;
+	int bella_one =0;
 	int bella_two = 0;
 	int bella_three = 0;
 	string h_kmer;
@@ -821,9 +773,8 @@ DeNovoCount_new(vector<filedata> & allfiles,
 				printf("kmer : %s\n",h_kmer.c_str());
 			} 
 			int val=0;
-			//TODO errore out of rangw
                         val = countsdenovo.find(mykmer);
-			//vals.push_back(val);
+			vals.push_back(val);
 			if(val == 3){
 				bella_three++;	
 			}
@@ -842,13 +793,13 @@ DeNovoCount_new(vector<filedata> & allfiles,
 
 	auto tgpu1 = Clock::now();
 	vector<uint32_t> h_result;
-	h_result = HashTableGPU(h_query,h_index,17,totkmers);
+	h_result = HashTableGPU(h_query,h_index,kmer_len,totkmers);
 	auto tgpu2 = Clock::now();	
 	int three = 0;
 	int two = 0;
 	int one = 0;
 	for(uint32_t i=0; i<totkmers;i++){
-		if(h_result[i]==-1){
+		if(h_result[i]==(-1)){
 			printf("error\n");
 		}
 		if(h_result[i] == 3){
