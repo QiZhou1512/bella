@@ -3,4 +3,4 @@
 	url = https://github.com/seqan/seqan.git
 [submodule "gpu/SlabHash"]
 	path = gpu/SlabHash
-	url = https://github.com/owensgroup/SlabHash.git
+	url = https://github.com/QiZhou1512/SlabHash
