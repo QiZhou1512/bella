@@ -48,12 +48,13 @@
 #include <thrust/device_ptr.h>
 #include <thrust/sort.h>
 #include <cuda_profiler_api.h>
-#include "gpu/kmer_count_kernels.h"
-#include "gpu/bloom-gpu/fhash.h"
-#include "gpu/bloom-gpu/nvbio/bloom_filter.h"
-#include "gpu/bloom-gpu/nvbio/types.h"
-#include "gpu/SlabHash/src/slab_hash.cuh"
-#include "gpu/SlabHash/src/gpu_hash_table.cuh"
+//#include "gpu/kmer_count_kernels.h"
+//#include "gpu/bloom-gpu/fhash.h"
+//#include "gpu/bloom-gpu/nvbio/bloom_filter.h"
+//#include "gpu/bloom-gpu/nvbio/types.h"
+//#include "gpu/SlabHash/src/slab_hash.cuh"
+//#include "gpu/SlabHash/src/gpu_hash_table.cuh"
+#include "count.cpp"
 typedef std::chrono::high_resolution_clock Clock;
 
 
@@ -385,28 +386,6 @@ void inputConverter(std::string& reads,char* filename){
   	else cout << "Unable to open file"; 
 	
 }
-
-void convCharToBin64(const char* array, vector<uint32_t> &h_kmers,vector<uint32_t> &h_index,int kmer_len,int * conv_table){
-	uint32_t head = 0;
-   	uint32_t tail = 0;
-    	for(int i = 0; i<(kmer_len-16);i++){
-		head = head<<2;
-		head |= conv_table[(int)array[i]];
-	}
-    
-   	for(int j = (kmer_len-16); j<kmer_len;j++){
-            	tail = tail<<2;
-            	tail |=conv_table[(int)array[j]];
-    	}
-	//printf("kmer_len : %d\n", kmer_len);
-	//for (int k = 31; 0 <= k; k--) {
-        //	printf("%c", (head & (1 << k)) ? '1' : '0');
-        //}
-        //printf("\n");	
-    	h_index.push_back(head);
-    	h_kmers.push_back(tail);
-}
-
 void printBin(char*toPrint){
         unsigned char *b = (unsigned char*) toPrint;
         unsigned char byte;
@@ -551,43 +530,6 @@ for(int tid = 0; tid<num_kmers; tid++){
 }
 }
 
-std::vector<uint32_t> HashTableGPU(std::vector<uint32_t>& h_kmers_to_insert,vector<uint32_t> h_index,int kmer_len,uint64_t num_kmers){
-	uint32_t num_keys = num_kmers;
-	assert(num_keys>0);
-	float expected_chain = 1;
-	uint32_t num_elements_per_unit = 15;
-	uint32_t expected_elements_per_bucket =
-			expected_chain * num_elements_per_unit;
-	uint32_t num_buckets = (num_keys + expected_elements_per_bucket - 1) /
-        			expected_elements_per_bucket;
-	
-	using KeyT = uint32_t;
-	using ValueT = uint32_t;
-    	std::vector<ValueT> h_result(num_kmers);
-	//printf("kmer_len: %d,  num_kmers : %d  \n",kmer_len , num_kmers);
-//	testHashThreads(h_kmers_to_insert.data(), h_kmers_to_insert.size(), h_num_kmers_read.data(), num_kmers, h_num_kmers_read.size());
-	
-	gpu_hash_table<KeyT, ValueT, SlabHashTypeT::ConcurrentMap>
-        	hash_table(num_kmers, num_buckets,pow(4, kmer_len-16),0, 1);
-//	for(int i = 0; i<200;i++){
-//		printf("finish insert");
-//	}
-	printf("h_kmers_to insert size : %d num kmers : %d\n",h_kmers_to_insert.size(),num_kmers);	
-        float insert_time =// hash_table.hash_insert_buffered(h_kmers_to_insert.data(), h_index.data(),num_kmers);
-                //hash_table.hash_insert(h_kmers_to_insert.data(),h_index.data(),num_kmers);
-       		printf("finish insert");
-	float insert_time_without_stream = hash_table.hash_insert(h_kmers_to_insert.data(),h_index.data(),num_kmers);
-	printf("insert time without stream %f",insert_time_without_stream);
-//	for(int i = 0; i<200;i++){
-//	printf("finish insert");
-//	}
-	printf("insert time%f\n",insert_time);
-	 float search_time =
-                hash_table.hash_search(h_kmers_to_insert.data(),h_index.data(), h_result.data(),num_kmers);
-	printf("insert time : %f, search time : %f\n",insert_time,search_time);
-	return h_result;
-}
-
 /**
  * @brief DeNovoCount
  * @param allfiles
@@ -608,14 +550,19 @@ DeNovoCount_new(vector<filedata> & allfiles,
 			size_t upperlimit /* memory limit */,
 			BELLApars & b_parameters)
 {
+    
     vector < vector<Kmer> > allkmers(MAXTHREADS);
+    vector < vector<uint32_t> > convertedKmers_h_query(MAXTHREADS);
+    vector < vector<uint32_t> > convertedKmers_h_index(MAXTHREADS);
     vector < vector<double> > allquals(MAXTHREADS);
     vector < HyperLogLog > hlls(MAXTHREADS, HyperLogLog(12));   // std::vector fill constructor
     double denovocount = omp_get_wtime();
     double cardinality;
     size_t totreads = 0;
-    	
-	
+    
+    uint32_t *h_key_cudaHost, *h_index_cudaHost;
+      	
+   	
     for(auto itr=allfiles.begin(); itr!=allfiles.end(); itr++) 
     {
         #pragma omp parallel
@@ -638,6 +585,7 @@ DeNovoCount_new(vector<filedata> & allfiles,
                 {
                     // remember that the last valid position is length()-1
                     int len = seqs[i].length();
+	//	    printf("length of the read: %d \n",len);
                     double rerror = 0.0;
 		    std::string re = seqs[i];
 		    
@@ -645,9 +593,10 @@ DeNovoCount_new(vector<filedata> & allfiles,
                     for(int j=0; j<=len-kmer_len; j++)  
                     {
                         std::string kmerstrfromfastq = seqs[i].substr(j, kmer_len);
+			convCharToBin64(kmerstrfromfastq.c_str(),convertedKmers_h_query[MYTHREAD],convertedKmers_h_index[MYTHREAD],kmer_len);
                         Kmer mykmer(kmerstrfromfastq.c_str());
                         Kmer lexsmall = mykmer.rep();
-                        allkmers[MYTHREAD].push_back(mykmer);
+                        //allkmers[MYTHREAD].push_back(mykmer);
                         hlls[MYTHREAD].add((const char*) mykmer.getBytes(), mykmer.getNumBytes());
 
             		if(b_parameters.skipEstimate == false)
@@ -686,46 +635,86 @@ DeNovoCount_new(vector<filedata> & allfiles,
     {
         erate = 0.0; // reset to 0 here, otherwise it cointains default or user-defined values
         #pragma omp for reduction(+:erate)
-        for (int i = 0; i < MAXTHREADS; i++) 
-            {
-                double temp = std::accumulate(allquals[i].begin(),allquals[i].end(), 0.0);
-                erate += temp/(double)allquals[i].size();
-            }
-        erate = erate / (double)MAXTHREADS;
-    }
+        	for (int i = 0; i < MAXTHREADS; i++) 
+            	{
+                	double temp = std::accumulate(allquals[i].begin(),allquals[i].end(), 0.0);
+                	erate += temp/(double)allquals[i].size();
+            	}
+        	erate = erate / (double)MAXTHREADS;
+    	}
 
 
     // HLL reduction (serial for now) to avoid double iteration
-    for (int i = 1; i < MAXTHREADS; i++) 
-    {
-        std::transform(hlls[0].M.begin(), hlls[0].M.end(), hlls[i].M.begin(), hlls[0].M.begin(), [](uint8_t c1, uint8_t c2) -> uint8_t{ return std::max(c1, c2); });
-    }
-    cardinality = hlls[0].estimate();
+    	for (int i = 1; i < MAXTHREADS; i++) 
+    	{
+        	std::transform(hlls[0].M.begin(), hlls[0].M.end(), hlls[i].M.begin(), hlls[0].M.begin(), [](uint8_t c1, uint8_t c2) -> uint8_t{ return std::max(c1, c2); });
+    	}
+   	cardinality = hlls[0].estimate();
 
-    double load2kmers = omp_get_wtime(); 
-    cout << "Initial parsing, error estimation, and k-mer loading took: " << load2kmers - denovocount << "s\n" << endl;
+    	double load2kmers = omp_get_wtime(); 
+    	cout << "Initial parsing, error estimation, and k-mer loading took: " << load2kmers - denovocount << "s\n" << endl;
 
 
 ////////////////////////////////////////////////////////////////////////////
+        uint32_t conv_table[32]={0x80000000,0xc0000000,0xe0000000,0xf0000000,0xf8000000,0xfc000000,0xfe000000,0xff000000,
+				 0xff800000,0xffc00000,0xffe00000,0xfff00000,0xfff80000,0xfffc0000,0xfffe0000,0xffff0000,
+				 0xffff8000,0xffffc000,0xffffe000,0xfffff000,0xfffff800,0xfffffc00,0xfffffe00,0xffffff00,
+				 0xffffff80,0xffffffc0,0xffffffe0,0xfffffff0,0xfffffff8,0xfffffffc,0xfffffffe,0xffffffff};
+        
+        
 
-	uint32_t totkmers = 0;
+	vector<uint32_t> h_lookup_table;
+	uint64_t totkmers = 0;
+	uint32_t full = 0xFFFFFFFF;
 	for(int i = 0 ; i < MAXTHREADS; ++i){
-		totkmers += allkmers[i].size();
+		int size = convertedKmers_h_query[i].size();
+		totkmers += size;
+//		for(int j = 0;j<size/32; j++){
+//			h_lookup_table.push_back(full);
+//		}
+//		h_lookup_table.push_back(conv_table[(size%32)-1]);
+	}
+//	for(int i = 0; i<h_lookup_table.size();i++){
+	
+//		for (int k = 31; 0 <= k; k--) {
+//                	printf("%c", (h_lookup_table[i] & (1 << k)) ? '1' : '0');
+//                }
+//              	printf("\n");
+
+//	}
+	printf("%" PRId64 "\n", totkmers);
+	CHECK_CUDA_ERROR(cudaHostAlloc((void**) &h_key_cudaHost,totkmers*sizeof(uint32_t),cudaHostAllocDefault));
+	CHECK_CUDA_ERROR(cudaHostAlloc((void**) &h_index_cudaHost,totkmers*sizeof(uint32_t),cudaHostAllocDefault));
+	uint64_t t = 0;
+	
+	#pragma omp for
+	for(uint64_t i = 0; i<MAXTHREADS; i++){
+		int convSize = convertedKmers_h_query[i].size();
+		uint32_t*h_query_list = convertedKmers_h_query[i].data();
+		uint32_t*h_index_list = convertedKmers_h_index[i].data();
+		for(uint32_t j = 0; j < convSize; j++){
+			if(h_query_list[j] != 0xFFFFFFFF){
+				h_key_cudaHost[t] = h_query_list[j];
+				h_index_cudaHost[t] = h_index_list[j];
+				t++;
+			}
+		}
 	}
 	
-    uint64_t *h_kmers = (uint64_t *) malloc(sizeof(*h_kmers) * totkmers * N_LONGS);
-    
-    uint64_t tmp = 0;
-    for(uint32_t i = 0; i< MAXTHREADS; i++){
-        for( int j = 0; j< allkmers[i].size();++j){
-            h_kmers[tmp++] = allkmers[i][j].getArray()[0];
-            h_kmers[tmp++] = allkmers[i][j].getArray()[1];
-            h_kmers[tmp++] = allkmers[i][j].getArray()[2];
-	    h_kmers[tmp++] = allkmers[i][j].getArray()[3];
-        }
+    	//uint64_t *h_kmers = (uint64_t *) malloc(sizeof(*h_kmers) * totkmers * N_LONGS);
+   	/* 
+    	uint64_t tmp = 0;
+    	for(uint32_t i = 0; i< MAXTHREADS; i++){
+        	for( int j = 0; j< allkmers[i].size();++j){
+            		h_kmers[tmp++] = allkmers[i][j].getArray()[0];
+            		h_kmers[tmp++] = allkmers[i][j].getArray()[1];
+            		h_kmers[tmp++] = allkmers[i][j].getArray()[2];
+	    		h_kmers[tmp++] = allkmers[i][j].getArray()[3];
+        	}
 
-    }
-    //BloomFilterFunc(totkmers,h_kmers);
+    	}
+	*/
+    	//BloomFilterFunc(totkmers,h_kmers);
 
 	//allocating and transfering kmers from the host to the device
 
@@ -738,11 +727,6 @@ DeNovoCount_new(vector<filedata> & allfiles,
 	printf("conv...\n");
 	//HASHTABLE
         //building hash table
-	int conv_table[100]={0};
-	conv_table[65] = 0x00;
-	conv_table[67] = 0x01;
-        conv_table[71] = 0x02;
-	conv_table[84] = 0x03;
 	int bella_one =0;
 	int bella_two = 0;
 	int bella_three = 0;
@@ -750,7 +734,7 @@ DeNovoCount_new(vector<filedata> & allfiles,
 	vector<int> vals;
 	vector<uint32_t> h_query;
 	vector<uint32_t> h_index;
-	 for (uint32_t k = 0; k < totkmers; ++k)
+	/* for (uint32_t k = 0; k < totkmers; ++k)
 	 {
 	 	uint32_t kmerid = k;
 	 	{
@@ -775,11 +759,11 @@ DeNovoCount_new(vector<filedata> & allfiles,
 	 		}
 			h_kmer = sx;
 	//		printf("kmer : %s\n",sx);
-			convCharToBin64(sx, h_query,h_index,kmer_len, conv_table);
+			convCharToBin64(sx, h_query,h_index,kmer_len);
                         Kmer mykmer(h_kmer.c_str());
                         Kmer lexsmall = mykmer.rep();
 			int val=0;
-                   /*     val = countsdenovo.find(mykmer);
+          */         /*     val = countsdenovo.find(mykmer);
 			vals.push_back(val);
 			if(val == 3){
 				bella_three++;	
@@ -790,23 +774,27 @@ DeNovoCount_new(vector<filedata> & allfiles,
 			if(val == 1){
 				bella_one++;
 			}*/
-	 	}	
-	 }
-
+	// 	}	
+	// }
 
 	printf("starting gpu hash");
 	printf("\n\n\n\n");
 
 	auto tgpu1 = Clock::now();
 	vector<uint32_t> h_result;
-	h_result = HashTableGPU(h_query,h_index,kmer_len,totkmers);
+	//h_result = HashTableGPU(h_query,h_index,kmer_len,totkmers);
+	h_result = HashTableGPU(h_key_cudaHost,h_index_cudaHost, kmer_len,totkmers);
 	auto tgpu2 = Clock::now();	
 	int three = 0;
 	int two = 0;
 	int one = 0;
-	for(uint32_t i=0; i<totkmers;i++){
+	exit(0);
+	int count_err = 0;
+	#pragma omp for
+	for(uint64_t i=0; i<totkmers;i++){
 		if(h_result[i]==(-1)){
-			printf("error\n");
+			//printf("error\n");
+			count_err++;
 		}
 		if(h_result[i] == 3){
 			three++;
@@ -823,7 +811,7 @@ DeNovoCount_new(vector<filedata> & allfiles,
 	,one,bella_one, two,bella_two, three,bella_three);
 	double duration_gpu = std::chrono::duration_cast<std::chrono::nanoseconds>(tgpu2 - tgpu1).count();
         duration_gpu = duration_gpu / 1e6;
-
+	printf("count err %d\n",count_err);
 	printf("totkmers: %d, tgpu: %.2f tbella: %.2f \n", totkmers,duration_gpu,duration_bella);
         
 	/*

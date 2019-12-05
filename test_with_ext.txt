@@ -1,0 +1,5 @@
+../SRR062635.filt.fastq
+/global/cscratch1/sd/qizhou/synthetic_datasets/vvulnificus30x_0001.fastq
+../SRR062635.filt.fastq
+/global/cscratch1/sd/qizhou/synthetic_datasets/vvulnificus30x_0001.fastq
+../SRR062635.filt.fastq
