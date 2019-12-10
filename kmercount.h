@@ -656,10 +656,14 @@ DeNovoCount_new(vector<filedata> & allfiles,
 
 
 ////////////////////////////////////////////////////////////////////////////
-        uint32_t conv_table[32]={0x80000000,0xc0000000,0xe0000000,0xf0000000,0xf8000000,0xfc000000,0xfe000000,0xff000000,
-				 0xff800000,0xffc00000,0xffe00000,0xfff00000,0xfff80000,0xfffc0000,0xfffe0000,0xffff0000,
-				 0xffff8000,0xffffc000,0xffffe000,0xfffff000,0xfffff800,0xfffffc00,0xfffffe00,0xffffff00,
-				 0xffffff80,0xffffffc0,0xffffffe0,0xfffffff0,0xfffffff8,0xfffffffc,0xfffffffe,0xffffffff};
+        uint32_t conv_table[32]={0x80000000,0xc0000000,0xe0000000,0xf0000000,
+				 0xf8000000,0xfc000000,0xfe000000,0xff000000,
+				 0xff800000,0xffc00000,0xffe00000,0xfff00000,
+				 0xfff80000,0xfffc0000,0xfffe0000,0xffff0000,
+				 0xffff8000,0xffffc000,0xffffe000,0xfffff000,
+				 0xfffff800,0xfffffc00,0xfffffe00,0xffffff00,
+				 0xffffff80,0xffffffc0,0xffffffe0,0xfffffff0,
+				 0xfffffff8,0xfffffffc,0xfffffffe,0xffffffff};
         
         
 
@@ -669,19 +673,22 @@ DeNovoCount_new(vector<filedata> & allfiles,
 	for(int i = 0 ; i < MAXTHREADS; ++i){
 		int size = convertedKmers_h_query[i].size();
 		totkmers += size;
-//		for(int j = 0;j<size/32; j++){
-//			h_lookup_table.push_back(full);
-//		}
-//		h_lookup_table.push_back(conv_table[(size%32)-1]);
+		for(int j = 0;j<size/32; j++){
+			h_lookup_table.push_back(full);
+		}
+		if(size !=0){
+			h_lookup_table.push_back(conv_table[(size%32)-1]);
+		}
 	}
-//	for(int i = 0; i<h_lookup_table.size();i++){
+/*
+	for(int i = 0; i<h_lookup_table.size();i++){
 	
-//		for (int k = 31; 0 <= k; k--) {
-//                	printf("%c", (h_lookup_table[i] & (1 << k)) ? '1' : '0');
-//                }
-//              	printf("\n");
+		for (int k = 31; 0 <= k; k--) {
+                	printf("%c", (h_lookup_table[i] & (1 << k)) ? '1' : '0');
+                }
+              	printf("\n");
 
-//	}
+	}*/
 	printf("%" PRId64 "\n", totkmers);
 	CHECK_CUDA_ERROR(cudaHostAlloc((void**) &h_key_cudaHost,totkmers*sizeof(uint32_t),cudaHostAllocDefault));
 	CHECK_CUDA_ERROR(cudaHostAlloc((void**) &h_index_cudaHost,totkmers*sizeof(uint32_t),cudaHostAllocDefault));
