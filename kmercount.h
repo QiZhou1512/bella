@@ -486,14 +486,14 @@ dictionary_t accurateCount(double* duration_bella,vector < vector<Kmer> > allkme
 }
 
 void testHashThreads(uint32_t* d_key,uint32_t num_vec,int*num_kmers_read,int num_kmers, int num_of_reads){
-int post  = 0;
-int index_vector = 0;
-int index_array = 0;
-uint32_t myKey = 0;
-int div = 0;
-int prev = 0;
-int start_index = 0;
-int num_char =16;
+	int post  = 0;
+	int index_vector = 0;
+	int index_array = 0;
+	uint32_t myKey = 0;
+	int div = 0;
+	int prev = 0;
+	int start_index = 0;
+	int num_char =16;
 
 for(int tid = 0; tid<num_kmers; tid++){
         for(int i=0;i<num_of_reads;i++){
@@ -596,7 +596,7 @@ DeNovoCount_new(vector<filedata> & allfiles,
 			convCharToBin64(kmerstrfromfastq.c_str(),convertedKmers_h_query[MYTHREAD],convertedKmers_h_index[MYTHREAD],kmer_len);
                         Kmer mykmer(kmerstrfromfastq.c_str());
                         Kmer lexsmall = mykmer.rep();
-                        //allkmers[MYTHREAD].push_back(mykmer);
+                        allkmers[MYTHREAD].push_back(mykmer);
                         hlls[MYTHREAD].add((const char*) mykmer.getBytes(), mykmer.getNumBytes());
 
             		if(b_parameters.skipEstimate == false)
@@ -656,6 +656,7 @@ DeNovoCount_new(vector<filedata> & allfiles,
 
 
 ////////////////////////////////////////////////////////////////////////////
+
         uint32_t conv_table[32]={0x80000000,0xc0000000,0xe0000000,0xf0000000,
 				 0xf8000000,0xfc000000,0xfe000000,0xff000000,
 				 0xff800000,0xffc00000,0xffe00000,0xfff00000,
@@ -666,20 +667,25 @@ DeNovoCount_new(vector<filedata> & allfiles,
 				 0xfffffff8,0xfffffffc,0xfffffffe,0xffffffff};
         
         
-
-	vector<uint32_t> h_lookup_table;
+	//in order to create the white list
+	vector<uint32_t> h_whitelist;
 	uint64_t totkmers = 0;
 	uint32_t full = 0xFFFFFFFF;
 	for(int i = 0 ; i < MAXTHREADS; ++i){
 		int size = convertedKmers_h_query[i].size();
 		totkmers += size;
 		for(int j = 0;j<size/32; j++){
-			h_lookup_table.push_back(full);
+			h_whitelist.push_back(full);
 		}
 		if(size !=0){
-			h_lookup_table.push_back(conv_table[(size%32)-1]);
+			h_whitelist.push_back(conv_table[(size%32)-1]);
 		}
 	}
+
+
+	dictionary_t countsdenovo;
+
+
 /*
 	for(int i = 0; i<h_lookup_table.size();i++){
 	
@@ -708,8 +714,8 @@ DeNovoCount_new(vector<filedata> & allfiles,
 		}
 	}
 	
-    	//uint64_t *h_kmers = (uint64_t *) malloc(sizeof(*h_kmers) * totkmers * N_LONGS);
-   	/* 
+    	uint64_t *h_kmers = (uint64_t *) malloc(sizeof(*h_kmers) * totkmers * N_LONGS);
+   	 
     	uint64_t tmp = 0;
     	for(uint32_t i = 0; i< MAXTHREADS; i++){
         	for( int j = 0; j< allkmers[i].size();++j){
@@ -720,14 +726,13 @@ DeNovoCount_new(vector<filedata> & allfiles,
         	}
 
     	}
-	*/
+	
     	//BloomFilterFunc(totkmers,h_kmers);
 
 	//allocating and transfering kmers from the host to the device
 
 
     	double duration_bella;
-    	dictionary_t countsdenovo;
     	countsdenovo = accurateCount(&duration_bella,allkmers);
 	printf("tbella: %.2f \n", duration_bella);
 
@@ -741,7 +746,7 @@ DeNovoCount_new(vector<filedata> & allfiles,
 	vector<int> vals;
 	vector<uint32_t> h_query;
 	vector<uint32_t> h_index;
-	/* for (uint32_t k = 0; k < totkmers; ++k)
+	for (uint32_t k = 0; k < totkmers; ++k)
 	 {
 	 	uint32_t kmerid = k;
 	 	{
@@ -770,7 +775,7 @@ DeNovoCount_new(vector<filedata> & allfiles,
                         Kmer mykmer(h_kmer.c_str());
                         Kmer lexsmall = mykmer.rep();
 			int val=0;
-          */         /*     val = countsdenovo.find(mykmer);
+                        val = countsdenovo.find(mykmer);
 			vals.push_back(val);
 			if(val == 3){
 				bella_three++;	
@@ -780,13 +785,12 @@ DeNovoCount_new(vector<filedata> & allfiles,
 			}	
 			if(val == 1){
 				bella_one++;
-			}*/
-	// 	}	
-	// }
+			}
+	 	}	
+	 }
 
 	printf("starting gpu hash");
 	printf("\n\n\n\n");
-
 	auto tgpu1 = Clock::now();
 	vector<uint32_t> h_result;
 	//h_result = HashTableGPU(h_query,h_index,kmer_len,totkmers);
@@ -795,27 +799,29 @@ DeNovoCount_new(vector<filedata> & allfiles,
 	int three = 0;
 	int two = 0;
 	int one = 0;
-	exit(0);
 	int count_err = 0;
-	#pragma omp for
+	int others = 0;
+	
 	for(uint64_t i=0; i<totkmers;i++){
 		if(h_result[i]==(-1)){
 			//printf("error\n");
 			count_err++;
 		}
-		if(h_result[i] == 3){
+		else if(h_result[i] == 3){
 			three++;
 		}
-		if(h_result[i] == 2){
+		else if(h_result[i] == 2){
 			two++;
 		}
-		if(h_result[i] == 1){
+		else if(h_result[i] == 1){
 			one++;
+		}else{
+			others++;
 		}
 	}
 	printf("h_result size : %d, totkmers : %d \n",h_result.size(),totkmers);
-	printf("one : %d,bella_one: %d, two: %d,bella_two : %d,three : %d, bella_three: %d \n"
-	,one,bella_one, two,bella_two, three,bella_three);
+	printf("one : %d,bella_one: %d, two: %d,bella_two : %d,three : %d, bella_three: %d more than one: %d \n"
+	,one,bella_one, two,bella_two, three,bella_three, two+three+others);
 	double duration_gpu = std::chrono::duration_cast<std::chrono::nanoseconds>(tgpu2 - tgpu1).count();
         duration_gpu = duration_gpu / 1e6;
 	printf("count err %d\n",count_err);
