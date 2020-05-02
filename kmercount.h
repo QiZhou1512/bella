@@ -670,27 +670,25 @@ DeNovoCount_new(vector<filedata> & allfiles,
     cout << "Initial parsing, error estimation, and k-mer loading took: " << load2kmers - denovocount << "s\n" << endl;
 
 
-////////////////////////////////////////////////////////////////////////////
 
 	uint32_t totkmers = 0;
 	for(int i = 0 ; i < MAXTHREADS; ++i){
 		totkmers += allkmers[i].size();
 	}
 	
-    uint64_t *h_kmers = (uint64_t *) malloc(sizeof(*h_kmers) * totkmers * N_LONGS);
+    	uint64_t *h_kmers = (uint64_t *) malloc(sizeof(*h_kmers) * totkmers * N_LONGS);
     
-    uint64_t tmp = 0;
-    for(uint32_t i = 0; i< MAXTHREADS; i++){
-        for( int j = 0; j< allkmers[i].size();++j){
-            h_kmers[tmp++] = allkmers[i][j].getArray()[0];
-            h_kmers[tmp++] = allkmers[i][j].getArray()[1];
-            h_kmers[tmp++] = allkmers[i][j].getArray()[2];
-	    h_kmers[tmp++] = allkmers[i][j].getArray()[3];
-        }
+    	uint64_t tmp = 0;
+    	for(uint32_t i = 0; i< MAXTHREADS; i++){
+        	for( int j = 0; j< allkmers[i].size();++j){
+            		h_kmers[tmp++] = allkmers[i][j].getArray()[0];
+            		h_kmers[tmp++] = allkmers[i][j].getArray()[1];
+            		h_kmers[tmp++] = allkmers[i][j].getArray()[2];
+	    		h_kmers[tmp++] = allkmers[i][j].getArray()[3];
+        	}
 
-    }
+    	}
 	
-//////////////////////////////////////////////////////////////////
 	uint64_t tot_key_blocks = 0;
 	uint64_t tot_whitelist_blocks = 0;
 //	countBlocks(h_reads, h_whitelist, tot_key_blocks, tot_whitelist_blocks);
@@ -709,7 +707,6 @@ DeNovoCount_new(vector<filedata> & allfiles,
 	printf("tot key blocks : %" PRId64 " tot whitelist blocks: %"PRId64"\n",tot_key_blocks, tot_whitelist_blocks);
 	
 	//allocating and transfering kmers from the host to the device
-//	exit(0);	
 	uint64_t t = 0;
         uint64_t g = 0;
 
@@ -750,6 +747,7 @@ DeNovoCount_new(vector<filedata> & allfiles,
 	vector<int> vals;
 	vector<uint32_t> h_query;
 	vector<uint32_t> h_index;
+	//count for the cpu hash table in order to compare results
 	 for (uint32_t k = 0; k < totkmers; ++k)
 	 {
 	 	uint32_t kmerid = k;
@@ -799,7 +797,7 @@ DeNovoCount_new(vector<filedata> & allfiles,
 
 	auto tgpu1 = Clock::now();
 	vector<uint32_t> h_result;
-		
+	//call for the GPU kernels		
 	h_result = HashTableGPU(h_query,h_index,h_key_blocks,h_whitelist_blocks,tot_key_blocks,tot_whitelist_blocks,kmer_len,totkmers);
 	auto tgpu2 = Clock::now();	
 	int three = 0;
