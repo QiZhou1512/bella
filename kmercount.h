@@ -48,12 +48,15 @@
 #include <thrust/device_ptr.h>
 #include <thrust/sort.h>
 #include <cuda_profiler_api.h>
-#include "gpu/kmer_count_kernels.h"
-#include "gpu/bloom-gpu/fhash.h"
-#include "gpu/bloom-gpu/nvbio/bloom_filter.h"
-#include "gpu/bloom-gpu/nvbio/types.h"
-#include "gpu/SlabHash/src/slab_hash.cuh"
-#include "gpu/SlabHash/src/gpu_hash_table.cuh"
+//#include "gpu/kmer_count_kernels.h"
+//#include "gpu/bloom-gpu/fhash.h"
+//#include "gpu/bloom-gpu/nvbio/bloom_filter.h"
+//#include "gpu/bloom-gpu/nvbio/types.h"
+//#include "gpu/SlabHash/src/slab_hash.cuh"
+//#include "gpu/SlabHash/src/gpu_hash_table.cuh"
+
+#include "count.cpp"
+
 typedef std::chrono::high_resolution_clock Clock;
 
 
@@ -545,41 +548,6 @@ for(int tid = 0; tid<num_kmers; tid++){
 }
 }
 
-std::vector<uint32_t> HashTableGPU(std::vector<uint32_t>& h_kmers_to_insert,vector<uint32_t> h_index,int kmer_len,uint64_t num_kmers){
-	uint32_t num_keys = num_kmers;
-	assert(num_keys>0);
-	float expected_chain = 1;
-	uint32_t num_elements_per_unit = 15;
-	uint32_t expected_elements_per_bucket =
-			expected_chain * num_elements_per_unit;
-	uint32_t num_buckets = (num_keys + expected_elements_per_bucket - 1) /
-        			expected_elements_per_bucket;
-	
-	using KeyT = uint32_t;
-	using ValueT = uint32_t;
-    	std::vector<ValueT> h_result(num_kmers);
-	//printf("kmer_len: %d,  num_kmers : %d  \n",kmer_len , num_kmers);
-//	testHashThreads(h_kmers_to_insert.data(), h_kmers_to_insert.size(), h_num_kmers_read.data(), num_kmers, h_num_kmers_read.size());
-
-	gpu_hash_table<KeyT, ValueT, SlabHashTypeT::ConcurrentMap>
-        	hash_table(num_kmers, num_buckets, 0, 1);
-//	for(int i = 0; i<200;i++){
-//		printf("finish insert");
-//	}
-	printf("h_kmers_to insert size : %d num kmers : %d\n",h_kmers_to_insert.size(),num_kmers);	
-        float insert_time =
-                hash_table.hash_insert(h_kmers_to_insert.data(),h_index.data(),num_kmers);
-       		printf("finish insert");
-//	for(int i = 0; i<200;i++){
-//	printf("finish insert");
-//	}
-	printf("insert time%f\n",insert_time);
-	 float search_time =
-                hash_table.hash_search(h_kmers_to_insert.data(),h_index.data(), h_result.data(),num_kmers);
-	printf("insert time : %f, search time : %f\n",insert_time,search_time);
-	return h_result;
-}
-
 /**
  * @brief DeNovoCount
  * @param allfiles
@@ -606,7 +574,8 @@ DeNovoCount_new(vector<filedata> & allfiles,
     double denovocount = omp_get_wtime();
     double cardinality;
     size_t totreads = 0;
-    	
+	vector <vector<uint32_t>> h_reads(MAXTHREADS);
+	vector <vector<uint32_t>> h_whitelist(MAXTHREADS);
 	
     for(auto itr=allfiles.begin(); itr!=allfiles.end(); itr++) 
     {
@@ -633,10 +602,14 @@ DeNovoCount_new(vector<filedata> & allfiles,
                     double rerror = 0.0;
 		    std::string re = seqs[i];
 		    
+			convCharToBinRead(seqs[i].c_str(), h_reads[MYTHREAD]);
+                    	genWhitelist(len,h_whitelist[MYTHREAD],kmer_len);
 			
                     for(int j=0; j<=len-kmer_len; j++)  
                     {
-                        std::string kmerstrfromfastq = seqs[i].substr(j, kmer_len);
+			
+                        
+			std::string kmerstrfromfastq = seqs[i].substr(j, kmer_len);
                         Kmer mykmer(kmerstrfromfastq.c_str());
                         Kmer lexsmall = mykmer.rep();
                         allkmers[MYTHREAD].push_back(mykmer);
@@ -716,11 +689,47 @@ DeNovoCount_new(vector<filedata> & allfiles,
         }
 
     }
+	
+//////////////////////////////////////////////////////////////////
+	uint64_t tot_key_blocks = 0;
+	uint64_t tot_whitelist_blocks = 0;
+//	countBlocks(h_reads, h_whitelist, tot_key_blocks, tot_whitelist_blocks);
+	
+	for(uint64_t i = 0; i<MAXTHREADS; i++){
+                tot_key_blocks += h_reads[i].size();
+                tot_whitelist_blocks += h_whitelist[i].size();
+        }
+	
+	uint32_t *h_key_blocks;
+	uint32_t *h_whitelist_blocks;
+
+	h_key_blocks = (uint32_t *)malloc(sizeof(uint32_t)*tot_key_blocks);
+	h_whitelist_blocks = (uint32_t *)malloc(sizeof(uint32_t)*tot_whitelist_blocks);
     //BloomFilterFunc(totkmers,h_kmers);
-
+	printf("tot key blocks : %" PRId64 " tot whitelist blocks: %"PRId64"\n",tot_key_blocks, tot_whitelist_blocks);
+	
 	//allocating and transfering kmers from the host to the device
+//	exit(0);	
+	uint64_t t = 0;
+        uint64_t g = 0;
 
+        #pragma omp for
+        for(uint64_t i = 0; i<MAXTHREADS; i++){
 
+                uint32_t*h_key_list = h_reads[i].data();
+                uint32_t*h_index_list = h_whitelist[i].data();
+
+                for(uint32_t j = 0; j<h_reads[i].size(); j++){
+                        h_key_blocks[t] = h_key_list[j];
+                        t++;
+                }
+
+                for(uint32_t j = 0; j<h_whitelist[i].size();j++){
+                        h_whitelist_blocks[g] = h_index_list[j];
+                        g++;
+                }
+        }
+	
     	double duration_bella;
     	dictionary_t countsdenovo;
     	countsdenovo = accurateCount(&duration_bella,allkmers);
@@ -769,9 +778,6 @@ DeNovoCount_new(vector<filedata> & allfiles,
                         Kmer mykmer(h_kmer.c_str());
                         Kmer lexsmall = mykmer.rep();
 			
-			if(k==0){
-				printf("kmer : %s\n",h_kmer.c_str());
-			} 
 			int val=0;
                         val = countsdenovo.find(mykmer);
 			vals.push_back(val);
@@ -793,14 +799,16 @@ DeNovoCount_new(vector<filedata> & allfiles,
 
 	auto tgpu1 = Clock::now();
 	vector<uint32_t> h_result;
-	h_result = HashTableGPU(h_query,h_index,kmer_len,totkmers);
+		
+	h_result = HashTableGPU(h_query,h_index,h_key_blocks,h_whitelist_blocks,tot_key_blocks,tot_whitelist_blocks,kmer_len,totkmers);
 	auto tgpu2 = Clock::now();	
 	int three = 0;
 	int two = 0;
 	int one = 0;
-	for(uint32_t i=0; i<totkmers;i++){
+	
+	for(uint32_t i=0; i<32*tot_whitelist_blocks;i++){
 		if(h_result[i]==(-1)){
-			printf("error\n");
+			//printf("error\n");
 		}
 		if(h_result[i] == 3){
 			three++;
@@ -828,8 +836,7 @@ DeNovoCount_new(vector<filedata> & allfiles,
 	*/
 	
 
-	exit(0); 
-
+	exit(0);
 }
 
 #endif

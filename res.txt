@@ -1,0 +1,376 @@
+
+BELLA - Long Read Aligner for De Novo Genome Assembly
+
+fake_data.fastq: 0 MB
+K-mer counting: BELLA
+Output filename: out.out
+K-mer length: 16
+X-drop: 7
+Depth: 100X
+Compute alignment: true
+Seeding: two-kmer
+
+Running with up to 80 threads
+Reading FASTQ file fake_data.fastq
+Initial parsing, error estimation, and k-mer loading took: 0.0907334s
+
+tot key blocks : 15 tot whitelist blocks: 10
+finished the bloom filter, starting hashtable cpu...
+tbella: 37.16 
+conv...
+kmer : GAAAAAAAAAAAAGGG
+starting gpu hash
+
+
+
+10000000000000000000000000101010
+10101010101010101000101100111011
+00110111000111110001100011011011
+10010011100101110001100011011011
+10001101101110001110001101101101
+10001101100011011000010001110110
+01100110101010011100011101101010
+00110110111001110010111001001011
+01001011000000000000000000000000
+00000000000010101010101010101000
+00000011111111000000010001110001
+10111011100111001101011001010100
+11101011111100000010110010000110
+00110111000110110111000110110110
+00110111000000000000000000000000
+11111111111111111111111111111111
+11111111111111111111111111111111
+11111111111111111111111111111111
+11111111111111111111110000000000
+11111111111111111111110000000000
+11111111111111111111111111111111
+11111111111111111111111111111111
+11111000000000000000000000000000
+11111000000000000000000000000000
+00000000000000000000000000000000
+h_kmers_to insert size : 187 num kmers : 187
+========= CUDA-MEMCHECK
+========= Invalid __global__ read of size 4
+=========     at 0x00000310 in void insert_table_kernel_on_reads<unsigned int, unsigned int>(unsigned int*, unsigned int*, unsigned long, GpuSlabHashContext<unsigned int, unsigned int, SlabHashTypeT=0>)
+=========     by thread (4,0,0) in block (2,0,0)
+=========     Address 0x2aac44600040 is out of bounds
+=========     Device Frame:void insert_table_kernel_on_reads<unsigned int, unsigned int>(unsigned int*, unsigned int*, unsigned long, GpuSlabHashContext<unsigned int, unsigned int, SlabHashTypeT=0>) (void insert_table_kernel_on_reads<unsigned int, unsigned int>(unsigned int*, unsigned int*, unsigned long, GpuSlabHashContext<unsigned int, unsigned int, SlabHashTypeT=0>) : 0x310)
+=========     Saved host backtrace up to driver entry point at kernel launch time
+=========     Host Frame:/usr/lib64/libcuda.so.1 (cuLaunchKernel + 0x346) [0x297db6]
+=========     Host Frame:/usr/common/software/cuda/10.2.89/lib64/libcudart.so.10.2 [0x1a547]
+=========     Host Frame:/usr/common/software/cuda/10.2.89/lib64/libcudart.so.10.2 [0x1a5d7]
+=========     Host Frame:/usr/common/software/cuda/10.2.89/lib64/libcudart.so.10.2 (cudaLaunchKernel + 0x225) [0x51885]
+=========     Host Frame:./bella [0x172d5]
+=========     Host Frame:./bella [0xfd9a]
+=========     Host Frame:./bella [0x11528]
+=========     Host Frame:./bella [0x5346]
+=========     Host Frame:/lib64/libc.so.6 (__libc_start_main + 0xea) [0x20f8a]
+=========     Host Frame:./bella [0x54fa]
+=========
+========= Invalid __global__ read of size 4
+=========     at 0x00000310 in void insert_table_kernel_on_reads<unsigned int, unsigned int>(unsigned int*, unsigned int*, unsigned long, GpuSlabHashContext<unsigned int, unsigned int, SlabHashTypeT=0>)
+=========     by thread (3,0,0) in block (2,0,0)
+=========     Address 0x2aac44600040 is out of bounds
+=========     Device Frame:void insert_table_kernel_on_reads<unsigned int, unsigned int>(unsigned int*, unsigned int*, unsigned long, GpuSlabHashContext<unsigned int, unsigned int, SlabHashTypeT=0>) (void insert_table_kernel_on_reads<unsigned int, unsigned int>(unsigned int*, unsigned int*, unsigned long, GpuSlabHashContext<unsigned int, unsigned int, SlabHashTypeT=0>) : 0x310)
+=========     Saved host backtrace up to driver entry point at kernel launch time
+=========     Host Frame:/usr/lib64/libcuda.so.1 (cuLaunchKernel + 0x346) [0x297db6]
+=========     Host Frame:/usr/common/software/cuda/10.2.89/lib64/libcudart.so.10.2 [0x1a547]
+=========     Host Frame:/usr/common/software/cuda/10.2.89/lib64/libcudart.so.10.2 [0x1a5d7]
+=========     Host Frame:/usr/common/software/cuda/10.2.89/lib64/libcudart.so.10.2 (cudaLaunchKernel + 0x225) [0x51885]
+=========     Host Frame:./bella [0x172d5]
+=========     Host Frame:./bella [0xfd9a]
+=========     Host Frame:./bella [0x11528]
+=========     Host Frame:./bella [0x5346]
+=========     Host Frame:/lib64/libc.so.6 (__libc_start_main + 0xea) [0x20f8a]
+=========     Host Frame:./bella [0x54fa]
+=========
+========= Invalid __global__ read of size 4
+=========     at 0x00000310 in void insert_table_kernel_on_reads<unsigned int, unsigned int>(unsigned int*, unsigned int*, unsigned long, GpuSlabHashContext<unsigned int, unsigned int, SlabHashTypeT=0>)
+=========     by thread (2,0,0) in block (2,0,0)
+=========     Address 0x2aac44600040 is out of bounds
+=========     Device Frame:void insert_table_kernel_on_reads<unsigned int, unsigned int>(unsigned int*, unsigned int*, unsigned long, GpuSlabHashContext<unsigned int, unsigned int, SlabHashTypeT=0>) (void insert_table_kernel_on_reads<unsigned int, unsigned int>(unsigned int*, unsigned int*, unsigned long, GpuSlabHashContext<unsigned int, unsigned int, SlabHashTypeT=0>) : 0x310)
+=========     Saved host backtrace up to driver entry point at kernel launch time
+=========     Host Frame:/usr/lib64/libcuda.so.1 (cuLaunchKernel + 0x346) [0x297db6]
+=========     Host Frame:/usr/common/software/cuda/10.2.89/lib64/libcudart.so.10.2 [0x1a547]
+=========     Host Frame:/usr/common/software/cuda/10.2.89/lib64/libcudart.so.10.2 [0x1a5d7]
+=========     Host Frame:/usr/common/software/cuda/10.2.89/lib64/libcudart.so.10.2 (cudaLaunchKernel + 0x225) [0x51885]
+=========     Host Frame:./bella [0x172d5]
+=========     Host Frame:./bella [0xfd9a]
+=========     Host Frame:./bella [0x11528]
+=========     Host Frame:./bella [0x5346]
+=========     Host Frame:/lib64/libc.so.6 (__libc_start_main + 0xea) [0x20f8a]
+=========     Host Frame:./bella [0x54fa]
+=========
+========= Invalid __global__ read of size 4
+=========     at 0x00000310 in void insert_table_kernel_on_reads<unsigned int, unsigned int>(unsigned int*, unsigned int*, unsigned long, GpuSlabHashContext<unsigned int, unsigned int, SlabHashTypeT=0>)
+=========     by thread (1,0,0) in block (2,0,0)
+=========     Address 0x2aac44600040 is out of bounds
+=========     Device Frame:void insert_table_kernel_on_reads<unsigned int, unsigned int>(unsigned int*, unsigned int*, unsigned long, GpuSlabHashContext<unsigned int, unsigned int, SlabHashTypeT=0>) (void insert_table_kernel_on_reads<unsigned int, unsigned int>(unsigned int*, unsigned int*, unsigned long, GpuSlabHashContext<unsigned int, unsigned int, SlabHashTypeT=0>) : 0x310)
+=========     Saved host backtrace up to driver entry point at kernel launch time
+=========     Host Frame:/usr/lib64/libcuda.so.1 (cuLaunchKernel + 0x346) [0x297db6]
+=========     Host Frame:/usr/common/software/cuda/10.2.89/lib64/libcudart.so.10.2 [0x1a547]
+=========     Host Frame:/usr/common/software/cuda/10.2.89/lib64/libcudart.so.10.2 [0x1a5d7]
+=========     Host Frame:/usr/common/software/cuda/10.2.89/lib64/libcudart.so.10.2 (cudaLaunchKernel + 0x225) [0x51885]
+=========     Host Frame:./bella [0x172d5]
+=========     Host Frame:./bella [0xfd9a]
+=========     Host Frame:./bella [0x11528]
+=========     Host Frame:./bella [0x5346]
+=========     Host Frame:/lib64/libc.so.6 (__libc_start_main + 0xea) [0x20f8a]
+=========     Host Frame:./bella [0x54fa]
+=========
+========= Invalid __global__ read of size 4
+=========     at 0x00000310 in void insert_table_kernel_on_reads<unsigned int, unsigned int>(unsigned int*, unsigned int*, unsigned long, GpuSlabHashContext<unsigned int, unsigned int, SlabHashTypeT=0>)
+=========     by thread (0,0,0) in block (2,0,0)
+=========     Address 0x2aac44600040 is out of bounds
+=========     Device Frame:void insert_table_kernel_on_reads<unsigned int, unsigned int>(unsigned int*, unsigned int*, unsigned long, GpuSlabHashContext<unsigned int, unsigned int, SlabHashTypeT=0>) (void insert_table_kernel_on_reads<unsigned int, unsigned int>(unsigned int*, unsigned int*, unsigned long, GpuSlabHashContext<unsigned int, unsigned int, SlabHashTypeT=0>) : 0x310)
+=========     Saved host backtrace up to driver entry point at kernel launch time
+=========     Host Frame:/usr/lib64/libcuda.so.1 (cuLaunchKernel + 0x346) [0x297db6]
+=========     Host Frame:/usr/common/software/cuda/10.2.89/lib64/libcudart.so.10.2 [0x1a547]
+=========     Host Frame:/usr/common/software/cuda/10.2.89/lib64/libcudart.so.10.2 [0x1a5d7]
+=========     Host Frame:/usr/common/software/cuda/10.2.89/lib64/libcudart.so.10.2 (cudaLaunchKernel + 0x225) [0x51885]
+=========     Host Frame:./bella [0x172d5]
+=========     Host Frame:./bella [0xfd9a]
+=========     Host Frame:./bella [0x11528]
+=========     Host Frame:./bella [0x5346]
+=========     Host Frame:/lib64/libc.so.6 (__libc_start_main + 0xea) [0x20f8a]
+=========     Host Frame:./bella [0x54fa]
+=========
+========= Invalid __global__ read of size 4
+=========     at 0x00000320 in void insert_table_kernel_on_reads<unsigned int, unsigned int>(unsigned int*, unsigned int*, unsigned long, GpuSlabHashContext<unsigned int, unsigned int, SlabHashTypeT=0>)
+=========     by thread (100,0,0) in block (1,0,0)
+=========     Address 0x2aac4460003c is out of bounds
+=========     Device Frame:void insert_table_kernel_on_reads<unsigned int, unsigned int>(unsigned int*, unsigned int*, unsigned long, GpuSlabHashContext<unsigned int, unsigned int, SlabHashTypeT=0>) (void insert_table_kernel_on_reads<unsigned int, unsigned int>(unsigned int*, unsigned int*, unsigned long, GpuSlabHashContext<unsigned int, unsigned int, SlabHashTypeT=0>) : 0x320)
+=========     Saved host backtrace up to driver entry point at kernel launch time
+=========     Host Frame:/usr/lib64/libcuda.so.1 (cuLaunchKernel + 0x346) [0x297db6]
+=========     Host Frame:/usr/common/software/cuda/10.2.89/lib64/libcudart.so.10.2 [0x1a547]
+=========     Host Frame:/usr/common/software/cuda/10.2.89/lib64/libcudart.so.10.2 [0x1a5d7]
+=========     Host Frame:/usr/common/software/cuda/10.2.89/lib64/libcudart.so.10.2 (cudaLaunchKernel + 0x225) [0x51885]
+=========     Host Frame:./bella [0x172d5]
+=========     Host Frame:./bella [0xfd9a]
+=========     Host Frame:./bella [0x11528]
+=========     Host Frame:./bella [0x5346]
+=========     Host Frame:/lib64/libc.so.6 (__libc_start_main + 0xea) [0x20f8a]
+=========     Host Frame:./bella [0x54fa]
+=========
+========= Invalid __global__ read of size 4
+=========     at 0x00000320 in void insert_table_kernel_on_reads<unsigned int, unsigned int>(unsigned int*, unsigned int*, unsigned long, GpuSlabHashContext<unsigned int, unsigned int, SlabHashTypeT=0>)
+=========     by thread (99,0,0) in block (1,0,0)
+=========     Address 0x2aac4460003c is out of bounds
+=========     Device Frame:void insert_table_kernel_on_reads<unsigned int, unsigned int>(unsigned int*, unsigned int*, unsigned long, GpuSlabHashContext<unsigned int, unsigned int, SlabHashTypeT=0>) (void insert_table_kernel_on_reads<unsigned int, unsigned int>(unsigned int*, unsigned int*, unsigned long, GpuSlabHashContext<unsigned int, unsigned int, SlabHashTypeT=0>) : 0x320)
+=========     Saved host backtrace up to driver entry point at kernel launch time
+=========     Host Frame:/usr/lib64/libcuda.so.1 (cuLaunchKernel + 0x346) [0x297db6]
+=========     Host Frame:/usr/common/software/cuda/10.2.89/lib64/libcudart.so.10.2 [0x1a547]
+=========     Host Frame:/usr/common/software/cuda/10.2.89/lib64/libcudart.so.10.2 [0x1a5d7]
+=========     Host Frame:/usr/common/software/cuda/10.2.89/lib64/libcudart.so.10.2 (cudaLaunchKernel + 0x225) [0x51885]
+=========     Host Frame:./bella [0x172d5]
+=========     Host Frame:./bella [0xfd9a]
+=========     Host Frame:./bella [0x11528]
+=========     Host Frame:./bella [0x5346]
+=========     Host Frame:/lib64/libc.so.6 (__libc_start_main + 0xea) [0x20f8a]
+=========     Host Frame:./bella [0x54fa]
+=========
+========= Invalid __global__ read of size 4
+=========     at 0x00000320 in void insert_table_kernel_on_reads<unsigned int, unsigned int>(unsigned int*, unsigned int*, unsigned long, GpuSlabHashContext<unsigned int, unsigned int, SlabHashTypeT=0>)
+=========     by thread (98,0,0) in block (1,0,0)
+=========     Address 0x2aac4460003c is out of bounds
+=========     Device Frame:void insert_table_kernel_on_reads<unsigned int, unsigned int>(unsigned int*, unsigned int*, unsigned long, GpuSlabHashContext<unsigned int, unsigned int, SlabHashTypeT=0>) (void insert_table_kernel_on_reads<unsigned int, unsigned int>(unsigned int*, unsigned int*, unsigned long, GpuSlabHashContext<unsigned int, unsigned int, SlabHashTypeT=0>) : 0x320)
+=========     Saved host backtrace up to driver entry point at kernel launch time
+=========     Host Frame:/usr/lib64/libcuda.so.1 (cuLaunchKernel + 0x346) [0x297db6]
+=========     Host Frame:/usr/common/software/cuda/10.2.89/lib64/libcudart.so.10.2 [0x1a547]
+=========     Host Frame:/usr/common/software/cuda/10.2.89/lib64/libcudart.so.10.2 [0x1a5d7]
+=========     Host Frame:/usr/common/software/cuda/10.2.89/lib64/libcudart.so.10.2 (cudaLaunchKernel + 0x225) [0x51885]
+=========     Host Frame:./bella [0x172d5]
+=========     Host Frame:./bella [0xfd9a]
+=========     Host Frame:./bella [0x11528]
+=========     Host Frame:./bella [0x5346]
+=========     Host Frame:/lib64/libc.so.6 (__libc_start_main + 0xea) [0x20f8a]
+=========     Host Frame:./bella [0x54fa]
+=========
+========= Invalid __global__ read of size 4
+=========     at 0x00000320 in void insert_table_kernel_on_reads<unsigned int, unsigned int>(unsigned int*, unsigned int*, unsigned long, GpuSlabHashContext<unsigned int, unsig1722402666 tid: 96 block: 6 bit: 0
+1788638883 tid: 97 block: 6 bit: 1
+2848418358 tid: 98 block: 6 bit: 2
+2625020782 tid: 99 block: 6 bit: 3
+3345626855 tid: 100 block: 6 bit: 4
+1990422130 tid: 101 block: 6 bit: 5
+1781983022 tid: 102 block: 6 bit: 6
+2741924580 tid: 103 block: 6 bit: 7
+921120331 tid: 104 block: 6 bit: 8
+0 tid: 105 block: 6 bit: 9
+0 tid: 106 block: 6 bit: 10
+0 tid: 107 block: 6 bit: 11
+0 tid: 108 block: 6 bit: 12
+0 tid: 109 block: 6 bit: 13
+0 tid: 110 block: 6 bit: 14
+0 tid: 111 block: 6 bit: 15
+921120331 tid: 112 block: 7 bit: 0
+1853023412 tid: 113 block: 7 bit: 1
+3878570827 tid: 114 block: 7 bit: 2
+1927591088 tid: 115 block: 7 bit: 3
+776686336 tid: 116 block: 7 bit: 4
+3837046784 tid: 117 block: 7 bit: 5
+924784859 tid: 32 block: 2 bit: 0
+1911655865 tid: 33 block: 2 bit: 1
+521722771 tid: 34 block: 2 bit: 2
+4052597049 tid: 35 block: 2 bit: 3
+417043351 tid: 36 block: 2 bit: 4
+2377726321 tid: 37 block: 2 bit: 5
+3683882776 tid: 38 block: 2 bit: 6
+3107549581 tid: 39 block: 2 bit: 7
+2476153051 tid: 40 block: 2 bit: 8
+0 tid: 41 block: 2 bit: 9
+0 tid: 42 block: 2 bit: 10
+0 tid: 43 block: 2 bit: 11
+0 tid: 44 block: 2 bit: 12
+0 tid: 45 block: 2 bit: 13
+0 tid: 46 block: 2 bit: 14
+0 tid: 47 block: 2 bit: 15
+2476153051 tid: 48 block: 3 bit: 0
+963743160 tid: 49 block: 3 bit: 1
+2534988685 tid: 50 block: 3 bit: 2
+1905113307 tid: 51 block: 3 bit: 3
+417041848 tid: 52 block: 3 bit: 4
+2377702286 tid: 53 block: 3 bit: 5
+3683498211 tid: 54 block: 3 bit: 6
+3101396534 tid: 55 block: 3 bit: 7
+2377704301 tid: 56 block: 3 bit: 8
+0 tid: 57 block: 3 bit: 9
+0 tid: 58 block: 3 bit: 10
+0 tid: 59 block: 3 bit: 11
+0 tid: 60 block: 3 bit: 12
+0 tid: 61 block: 3 bit: 13
+0 tid: 62 block: 3 bit: 14
+0 tid: 63 block: 3 bit: 15
+2377704301 tid: 64 block: 4 bit: 0
+3683530456 tid: 65 block: 4 bit: 1
+3101912461 tid: 66 block: 4 bit: 2
+2385959128 tid: 67 block: 4 bit: 3
+3815607693 tid: 68 block: 4 bit: 4
+920180952 tid: 69 block: 4 bit: 5
+1837993348 tid: 70 block: 4 bit: 6
+3638089799 tid: 71 block: 4 bit: 7
+2374861942 tid: 72 block: 4 bit: 8
+0 tid: 73 block: 4 bit: 9
+0 tid: 74 block: 4 bit: 10
+0 tid: 75 block: 4 bit: 11
+0 tid: 76 block: 4 bit: 12
+0 tid: 77 block: 4 bit: 13
+0 tid: 78 block: 4 bit: 14
+0 tid: 79 block: 4 bit: 15
+2374861942 tid: 80 block: 5 bit: 0
+3638052710 tid: 81 block: 5 bit: 1
+2374268518 tid: 82 block: 5 bit: 2
+3628557930 tid: 83 block: 5 bit: 3
+2222352041 tid: 84 block: 5 bit: 4
+1197894300 tid: 85 block: 5 bit: 5
+1986439623 tid: 86 block: 5 bit: 6
+1718262902 tid: 87 block: 5 bit: 7
+1722402666 tid: 88 block: 5 bit: 8
+0 tid: 89 block: 5 bit: 9
+0 tid: 90 block: 5 bit: 10
+0 tid: 91 block: 5 bit: 11
+0 tid: 92 block: 5 bit: 12
+0 tid: 93 block: 5 bit: 13
+0 tid: 94 block: 5 bit: 14
+0 tid: 95 block: 5 bit: 15
+2147483690 tid: 0 block: 0 bit: 0
+682 tid: 1 block: 0 bit: 1
+10922 tid: 2 block: 0 bit: 2
+174762 tid: 3 block: 0 bit: 3
+2796202 tid: 4 block: 0 bit: 4
+44739240 tid: 5 block: 0 bit: 5
+715827851 tid: 6 block: 0 bit: 6
+2863311027 tid: 7 block: 0 bit: 7
+2863303483 tid: 8 block: 0 bit: 8
+0 tid: 9 block: 0 bit: 9
+0 tid: 10 block: 0 bit: 10
+0 tid: 11 block: 0 bit: 11
+0 tid: 12 block: 0 bit: 12
+0 tid: 13 block: 0 bit: 13
+0 tid: 14 block: 0 bit: 14
+0 tid: 15 block: 0 bit: 15
+2863303483 tid: 16 block: 1 bit: 0
+2863182771 tid: 17 block: 1 bit: 1
+2861251383 tid: 18 block: 1 bit: 2
+2830349169 tid: 19 block: 1 bit: 3
+2335913759 tid: 20 block: 1 bit: 4
+3014881777 tid: 21 block: 1 bit: 5
+993468184 tid: 22 block: 1 bit: 6
+3010589069 tid: 23 block: 1 bit: 7
+924784859 tid: 24 block: 1 bit: 8
+0 tid: 25 block: 1 bit: 9
+0 tid: 26 block: 1 bit: 10
+0 tid: 27 block: 1 bit: 11
+0 tid: 28 block: 1 bit: 12
+0 tid: 29 block: 1 bit: 13
+0 tid: 30 block: 1 bit: 14
+0 tid: 31 block: 1 bit: 15
+ned int, SlabHashTypeT=0>)
+=========     by thread (97,0,0) in block (1,0,0)
+=========     Address 0x2aac4460003c is out of bounds
+=========     Device Frame:void insert_table_kernel_on_reads<unsigned int, unsigned int>(unsigned int*, unsigned int*, unsigned long, GpuSlabHashContext<unsigned int, unsigned int, SlabHashTypeT=0>) (void insert_table_kernel_on_reads<unsigned int, unsigned int>(unsigned int*, unsigned int*, unsigned long, GpuSlabHashContext<unsigned int, unsigned int, SlabHashTypeT=0>) : 0x320)
+=========     Saved host backtrace up to driver entry point at kernel launch time
+=========     Host Frame:/usr/lib64/libcuda.so.1 (cuLaunchKernel + 0x346) [0x297db6]
+=========     Host Frame:/usr/common/software/cuda/10.2.89/lib64/libcudart.so.10.2 [0x1a547]
+=========     Host Frame:/usr/common/software/cuda/10.2.89/lib64/libcudart.so.10.2 [0x1a5d7]
+=========     Host Frame:/usr/common/software/cuda/10.2.89/lib64/libcudart.so.10.2 (cudaLaunchKernel + 0x225) [0x51885]
+=========     Host Frame:./bella [0x172d5]
+=========     Host Frame:./bella [0xfd9a]
+=========     Host Frame:./bella [0x11528]
+=========     Host Frame:./bella [0x5346]
+=========     Host Frame:/lib64/libc.so.6 (__libc_start_main + 0xea) [0x20f8a]
+=========     Host Frame:./bella [0x54fa]
+=========
+========= Program hit cudaErrorLaunchFailure (error 719) due to "unspecified launch failure" on CUDA API call to cudaEventSynchronize. 
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame:/usr/lib64/libcuda.so.1 [0x3ac5a3]
+=========     Host Frame:/usr/common/software/cuda/10.2.89/lib64/libcudart.so.10.2 (cudaEventSynchronize + 0x18e) [0x4ad1e]
+=========     Host Frame:./bella [0xfdb0]
+=========     Host Frame:./bella [0x11528]
+=========     Host Frame:./bella [0x5346]
+=========     Host Frame:/lib64/libc.so.6 (__libc_start_main + 0xea) [0x20f8a]
+=========     Host Frame:./bella [0x54fa]
+=========
+========= Program hit cudaErrorLaunchFailure (error 719) due to "unspecified launch failure" on CUDA API call to cudaEventElapsedTime. 
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame:/usr/lib64/libcuda.so.1 [0x3ac5a3]
+=========     Host Frame:/usr/common/software/cuda/10.2.89/lib64/libcudart.so.10.2 (cudaEventElapsedTime + 0x1cc) [0x4a9dc]
+=========     Host Frame:./bella [0xfdc4]
+=========     Host Frame:./bella [0x11528]
+=========     Host Frame:./bella [0x5346]
+=========     Host Frame:/lib64/libc.so.6 (__libc_start_main + 0xea) [0x20f8a]
+=========     Host Frame:./bella [0x54fa]
+=========
+========= Program hit cudaErrorLaunchFailure (error 719) due to "unspecified launch failure" on CUDA API call to cudaEventDestroy. 
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame:/usr/lib64/libcuda.so.1 [0x3ac5a3]
+=========     Host Frame:/usr/common/software/cuda/10.2.89/lib64/libcudart.so.10.2 (cudaEventDestroy + 0x18e) [0x4ab7e]
+=========     Host Frame:./bella [0xfdce]
+=========     Host Frame:./bella [0x11528]
+=========     Host Frame:./bella [0x5346]
+=========     Host Frame:/lib64/libc.so.6 (__libc_start_main + 0xea) [0x20f8a]
+=========     Host Frame:./bella [0x54fa]
+=========
+========= Program hit cudaErrorLaunchFailure (error 719) due to "unspecified launch failure" on CUDA API call to cudaEventDestroy. 
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame:/usr/lib64/libcuda.so.1 [0x3ac5a3]
+=========     Host Frame:/usr/common/software/cuda/10.2.89/lib64/libcudart.so.10.2 (cudaEventDestroy + 0x18e) [0x4ab7e]
+=========     Host Frame:./bella [0xfdd8]
+=========     Host Frame:./bella [0x11528]
+=========     Host Frame:./bella [0x5346]
+=========     Host Frame:/lib64/libc.so.6 (__libc_start_main + 0xea) [0x20f8a]
+=========     Host Frame:./bella [0x54fa]
+=========
+========= Program hit cudaErrorLaunchFailure (error 719) due to "unspecified launch failure" on CUDA API call to cudaMemset. 
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame:/usr/lib64/libcudafinish insertinsert time0.000000
+CUDA error at gpu/SlabHash/src/gpu_hash_table.cuh 142: unspecified launch failure
+.so.1 [0x3ac5a3]
+=========     Host Frame:/usr/common/software/cuda/10.2.89/lib64/libcudart.so.10.2 (cudaMemset + 0x1cc) [0x3a61c]
+=========     Host Frame:./bella [0xfe46]
+=========     Host Frame:./bella [0x11528]
+=========     Host Frame:./bella [0x5346]
+=========     Host Frame:/lib64/libc.so.6 (__libc_start_main + 0xea) [0x20f8a]
+=========     Host Frame:./bella [0x54fa]
+=========
+========= ERROR SUMMARY: 14 errors
